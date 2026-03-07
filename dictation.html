@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Dictation — LinguaTaxi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f0f1a;--surface:#16162a;--border:rgba(255,255,255,.08);--text:#e0e0e0;--dim:rgba(255,255,255,.35);--accent:#4FC3F7}
+html,body{height:100%;background:var(--bg);font-family:'Inter',sans-serif;color:var(--text)}
+body{display:flex;flex-direction:column}
+
+.toolbar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.toolbar .title{font-size:13px;font-weight:600;color:var(--accent);margin-right:auto;display:flex;align-items:center;gap:6px}
+.toolbar .dot{width:8px;height:8px;border-radius:50%;background:#555;flex-shrink:0}
+.toolbar .dot.conn{background:#4CAF50;box-shadow:0 0 6px #4CAF50}
+.toolbar .dot.live{background:#f44336;box-shadow:0 0 6px #f44336;animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.toolbar .status{font-size:11px;color:var(--dim);margin-right:8px}
+.btn{padding:6px 14px;border:1px solid var(--border);border-radius:5px;background:rgba(255,255,255,.05);color:var(--dim);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;transition:.15s;text-transform:uppercase;letter-spacing:.04em}
+.btn:hover{background:rgba(255,255,255,.1);color:#fff}
+.btn-accent{border-color:var(--accent);color:var(--accent)}
+.btn-accent:hover{background:rgba(79,195,247,.15)}
+.btn-danger{border-color:#f44336;color:#f44336}
+.btn-danger:hover{background:rgba(244,67,54,.15)}
+.btn-go{background:#4CAF50;border-color:#4CAF50;color:#fff;font-size:12px;padding:7px 18px}
+.btn-go:hover{background:#66BB6A;color:#fff}
+.btn-go.active{background:#f44336;border-color:#f44336}
+.btn-go.active:hover{background:#EF5350}
+.wordcount{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+
+.editor{flex:1;overflow-y:auto;padding:24px 32px;line-height:1.8;font-size:16px;max-width:900px;width:100%;margin:0 auto}
+.editor .final{color:var(--text)}
+.editor .interim{color:var(--dim);font-style:italic}
+.editor .cursor{display:inline-block;width:2px;height:1.1em;background:var(--accent);vertical-align:text-bottom;animation:blink 1s step-end infinite;margin-left:2px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+.settings-row{display:flex;align-items:center;gap:8px;padding:6px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;font-size:11px}
+.settings-row label{color:var(--dim);font-weight:600;white-space:nowrap}
+.settings-row input[type="text"]{flex:1;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:rgba(255,255,255,.05);color:var(--text);font-family:inherit;font-size:11px}
+.settings-row input[type="text"]:focus{outline:none;border-color:var(--accent)}
+.settings-row .path-hint{color:var(--dim);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty-state{color:var(--dim);font-size:14px;font-style:italic;padding:40px 0;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="title"><span class="dot" id="dot"></span> Dictation</div>
+  <button class="btn btn-go" id="goBtn" onclick="toggleTranscribing()">Start</button>
+  <span class="status" id="status">Connecting...</span>
+  <span class="wordcount" id="wordcount">0 words</span>
+  <button class="btn btn-accent" onclick="copyAll()" title="Copy all text to clipboard">Copy</button>
+  <button class="btn btn-accent" onclick="saveFile()" title="Save as .txt file">Save</button>
+  <button class="btn btn-danger" onclick="clearAll()" title="Clear all text">Clear</button>
+</div>
+
+<div class="settings-row">
+  <label>Save to:</label>
+  <input type="text" id="saveDir" placeholder="Loading..." spellcheck="false" onkeydown="if(event.key==='Enter')updateDir()">
+  <button class="btn" onclick="updateDir()" style="padding:4px 10px;font-size:10px">Set</button>
+</div>
+
+<div class="editor" id="editor">
+  <div class="empty-state" id="emptyState">Click <strong>Start</strong> then speak — text will appear here.</div>
+</div>
+
+<script>
+let ws = null, recon = 0;
+let fullText = '';  // accumulated final text
+let interimText = '';
+let transcribing = false;
+
+const editor = document.getElementById('editor');
+const emptyState = document.getElementById('emptyState');
+const dot = document.getElementById('dot');
+const statusEl = document.getElementById('status');
+const wordcountEl = document.getElementById('wordcount');
+
+function render() {
+  if (!fullText && !interimText) {
+    emptyState.style.display = 'block';
+    // Remove any text nodes
+    editor.querySelectorAll('.final,.interim,.cursor').forEach(e => e.remove());
+    return;
+  }
+  emptyState.style.display = 'none';
+
+  let html = '';
+  if (fullText) {
+    html += '<span class="final">' + esc(fullText) + '</span>';
+  }
+  if (interimText) {
+    html += '<span class="interim">' + esc(interimText) + '</span>';
+  }
+  html += '<span class="cursor"></span>';
+  editor.innerHTML = html;
+
+  // Auto-scroll to bottom
+  editor.scrollTop = editor.scrollHeight;
+}
+
+function updateWordCount() {
+  const text = fullText.trim();
+  const count = text ? text.split(/\s+/).length : 0;
+  wordcountEl.textContent = count + (count === 1 ? ' word' : ' words');
+}
+
+function esc(t) {
+  const d = document.createElement('div');
+  d.textContent = t;
+  return d.innerHTML;
+}
+
+function copyAll() {
+  if (!fullText.trim()) return;
+  navigator.clipboard.writeText(fullText.trim()).then(() => {
+    statusEl.textContent = 'Copied!';
+    setTimeout(() => { statusEl.textContent = 'Listening...'; }, 1500);
+  });
+}
+
+function saveFile() {
+  const text = fullText.trim();
+  if (!text) return;
+  const fd = new FormData();
+  fd.append('text', text);
+  fetch('/api/dictation-save', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(r => {
+      if (r.path) {
+        statusEl.textContent = 'Saved!';
+        setTimeout(() => { statusEl.textContent = transcribing ? 'Listening...' : 'Stopped'; }, 2000);
+      } else {
+        statusEl.textContent = 'Save error: ' + (r.error || 'unknown');
+      }
+    })
+    .catch(() => { statusEl.textContent = 'Save failed'; });
+}
+
+function loadDirConfig() {
+  fetch('/api/dictation-config').then(r => r.json()).then(c => {
+    document.getElementById('saveDir').value = c.dictation_dir || '';
+  });
+}
+
+function updateDir() {
+  const dir = document.getElementById('saveDir').value.trim();
+  if (!dir) return;
+  const fd = new FormData();
+  fd.append('dictation_dir', dir);
+  fetch('/api/dictation-config', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(r => {
+      if (r.error) {
+        statusEl.textContent = 'Invalid path: ' + r.error;
+      } else {
+        document.getElementById('saveDir').value = r.dictation_dir;
+        statusEl.textContent = 'Directory updated';
+        setTimeout(() => { statusEl.textContent = transcribing ? 'Listening...' : 'Stopped'; }, 1500);
+      }
+    });
+}
+
+function clearAll() {
+  fullText = '';
+  interimText = '';
+  render();
+  updateWordCount();
+}
+
+function toggleTranscribing() {
+  transcribing = !transcribing;
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'set_captioning_paused', paused: !transcribing }));
+  }
+  updateGoBtn();
+}
+
+function updateGoBtn() {
+  const btn = document.getElementById('goBtn');
+  if (transcribing) {
+    btn.textContent = 'Stop';
+    btn.classList.add('active');
+  } else {
+    btn.textContent = 'Start';
+    btn.classList.remove('active');
+  }
+}
+
+function handleMsg(msg) {
+  switch (msg.type) {
+    case 'status':
+      if (msg.captioning_paused !== undefined) {
+        transcribing = !msg.captioning_paused;
+        updateGoBtn();
+        if (!transcribing) { statusEl.textContent = 'Stopped'; break; }
+      }
+      if (msg.state === 'speech') {
+        dot.className = 'dot live';
+        statusEl.textContent = 'Listening...';
+      } else if (msg.state === 'silence') {
+        dot.className = 'dot conn';
+        statusEl.textContent = transcribing ? 'Ready' : 'Stopped';
+      }
+      break;
+    case 'interim':
+      interimText = msg.text || '';
+      render();
+      break;
+    case 'final':
+      if (msg.text) {
+        // Add space between segments, or start fresh
+        if (fullText && !fullText.endsWith('\n')) {
+          fullText += ' ';
+        }
+        fullText += msg.text;
+        updateWordCount();
+      }
+      interimText = '';
+      render();
+      break;
+    case 'captioning_paused':
+      transcribing = !msg.paused;
+      updateGoBtn();
+      if (msg.paused) {
+        statusEl.textContent = 'Stopped';
+        dot.className = 'dot';
+      } else {
+        statusEl.textContent = 'Listening...';
+        dot.className = 'dot conn';
+      }
+      break;
+    case 'clear_captions':
+      // Don't clear dictation when operator clears captions
+      break;
+  }
+}
+
+function connect() {
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws');
+  ws.onopen = () => {
+    recon = 0;
+    dot.className = 'dot conn';
+    statusEl.textContent = 'Ready';
+  };
+  ws.onmessage = e => handleMsg(JSON.parse(e.data));
+  ws.onclose = () => {
+    dot.className = 'dot';
+    statusEl.textContent = 'Reconnecting...';
+    if (recon < 50) setTimeout(connect, Math.min(1000 * Math.pow(1.5, recon++), 10000));
+  };
+  ws.onerror = () => {};
+}
+
+connect();
+loadDirConfig();
+</script>
+</body>
+</html>

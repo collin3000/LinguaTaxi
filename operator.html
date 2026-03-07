@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Operator — Live Caption</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700;800&family=Noto+Sans:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600;700&family=Source+Sans+3:wght@400;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--ac:#4FC3F7;--bg:#0a0a1a;--card:#12122a;--bdr:rgba(255,255,255,.08)}
+html,body{height:100%;background:var(--bg);font-family:'Atkinson Hyperlegible Next',sans-serif;color:#e0e0e0}
+body{display:flex}
+
+/* ── Left panel ── */
+.ctrl{width:400px;flex-shrink:0;overflow-y:auto;padding:16px;border-right:1px solid var(--bdr);display:flex;flex-direction:column;gap:12px}
+.ptitle{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--ac);display:flex;align-items:center;gap:6px}
+.ptitle .dot{width:8px;height:8px;border-radius:50%;background:#555}
+.ptitle .dot.conn{background:#4CAF50;box-shadow:0 0 6px #4CAF50}
+
+.card{background:var(--card);border:1px solid var(--bdr);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.clbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.4)}
+input[type="text"],input[type="password"],select{width:100%;padding:7px 9px;border-radius:5px;border:1px solid var(--bdr);background:rgba(255,255,255,.05);color:#fff;font-family:inherit;font-size:12px}
+input::placeholder{color:rgba(255,255,255,.18)}
+input:focus,select:focus{outline:none;border-color:var(--ac)}
+select option{background:var(--card)}
+input[type="range"]{-webkit-appearance:none;width:100%;height:5px;border-radius:3px;background:rgba(255,255,255,.1);outline:none}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--ac);cursor:pointer}
+.btn{padding:7px 12px;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-family:inherit;font-size:11px;text-transform:uppercase;letter-spacing:.04em;transition:.15s}
+.btn-p{background:var(--ac);color:#000}.btn-p:hover{filter:brightness(1.15)}
+.btn-d{background:#f44336;color:#fff}.btn-d:hover{filter:brightness(1.15)}
+.btn-g{background:rgba(255,255,255,.05);color:rgba(255,255,255,.5);border:1px solid var(--bdr)}.btn-g:hover{background:rgba(255,255,255,.1)}
+.row{display:flex;gap:6px;align-items:center}
+.row input,.row select{flex:1}
+.vd{font-size:11px;color:rgba(255,255,255,.35);font-variant-numeric:tabular-nums}
+.hint{font-size:10px;color:rgba(255,255,255,.2)}
+.warn{background:rgba(255,152,0,.1);border:1px solid rgba(255,152,0,.3);border-radius:6px;padding:10px;font-size:12px;color:#FFB74D}
+
+/* Color swatches */
+.swatch-row{display:flex;flex-wrap:wrap;gap:4px}
+.swatch{width:24px;height:24px;border-radius:4px;border:2px solid transparent;cursor:pointer;transition:.15s}
+.swatch:hover{transform:scale(1.15)}
+.swatch.active{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,.4)}
+
+/* BG options */
+.bg-opts{display:flex;gap:6px}
+.bg-opt{width:44px;height:32px;border-radius:5px;border:2px solid transparent;cursor:pointer;transition:.15s;position:relative}
+.bg-opt:hover{transform:scale(1.05)}
+.bg-opt.active{border-color:var(--ac);box-shadow:0 0 8px rgba(79,195,247,.3)}
+.bg-opt .bg-name{position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:8px;color:rgba(255,255,255,.3);white-space:nowrap}
+
+/* Font options */
+.font-opts{display:flex;flex-direction:column;gap:4px}
+.font-opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;border:1px solid transparent;cursor:pointer;transition:.15s}
+.font-opt:hover{background:rgba(255,255,255,.04)}
+.font-opt.active{border-color:var(--ac);background:rgba(79,195,247,.08)}
+.font-opt .fn{font-size:12px;font-weight:600;color:#fff}
+.font-opt .fnote{font-size:9px;color:rgba(255,255,255,.3)}
+
+/* Speaker buttons */
+.spgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.spbtn{padding:7px 5px;border:1px solid var(--bdr);border-radius:5px;background:rgba(255,255,255,.03);color:rgba(255,255,255,.5);font-family:inherit;font-weight:600;font-size:11px;cursor:pointer;transition:.15s;text-align:center;position:relative}
+.spbtn:hover{background:rgba(255,255,255,.07)}
+.spbtn.act{background:rgba(79,195,247,.12);border-color:var(--ac);color:#fff}
+.spbtn .hk{position:absolute;top:1px;right:3px;font-size:8px;color:rgba(255,255,255,.18)}
+.spwide{grid-column:1/-1}
+
+/* Translation slot config */
+.tslot{background:rgba(255,255,255,.02);border:1px solid var(--bdr);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px}
+.tslot-hdr{display:flex;justify-content:space-between;align-items:center}
+.tslot-num{font-size:10px;font-weight:700;color:rgba(255,255,255,.35)}
+.tslot-dest{font-size:9px;color:rgba(255,255,255,.2);font-style:italic}
+
+/* ── Right: Preview ── */
+.preview{flex:1;display:flex;flex-direction:column;padding:16px;overflow:hidden}
+.prev-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.25);margin-bottom:8px}
+.prev-box{flex:1;border-radius:8px;padding:16px;overflow:hidden;display:flex;flex-direction:column;gap:8px;transition:background .3s}
+.prev-session{font-weight:800;font-size:16px;text-align:center;color:#fff;text-transform:uppercase}
+.prev-speaker{font-weight:700;font-size:12px;text-align:center;color:var(--ac);text-transform:uppercase;letter-spacing:.08em;min-height:1em}
+.prev-section{display:flex;flex-direction:column;gap:2px}
+.prev-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#90CAF9}
+.prev-text{font-weight:600;font-size:14px;line-height:1.35;min-height:1.5em;overflow-y:auto;max-height:120px}
+.prev-interim{opacity:.4}
+.prev-divider{height:1px;background:rgba(255,255,255,.08)}
+.prev-footer{text-align:center;margin-top:auto}
+.prev-footer img{max-height:35px;border-radius:3px}
+.badge{font-size:10px;color:rgba(255,255,255,.18);text-align:center}
+</style>
+</head>
+<body>
+
+<div class="ctrl" id="ctrlPanel">
+  <div class="ptitle"><span class="dot" id="sDot"></span>Operator — <span id="sTxt">Connecting...</span></div>
+  <div class="warn" id="warn" style="display:none">No DeepL API key set. Translation disabled.</div>
+
+  <!-- Session -->
+  <div class="card">
+    <span class="clbl">Session</span>
+    <div class="row">
+      <input type="text" id="iTitle" placeholder="Session title...">
+      <button class="btn btn-p" onclick="saveAll()">Save</button>
+    </div>
+    <div class="row">
+      <input type="password" id="iKey" placeholder="DeepL API key">
+      <button class="btn btn-p" onclick="saveAll()">Save</button>
+    </div>
+    <span class="hint">Free key: <a href="https://www.deepl.com/pro-api" target="_blank" style="color:var(--ac)">deepl.com/pro-api</a></span>
+  </div>
+
+  <!-- Language Config -->
+  <div class="card">
+    <span class="clbl">Languages</span>
+    <div>
+      <span style="font-size:11px">Input Language (what speakers speak)</span>
+      <select id="iInputLang" onchange="saveAll()"></select>
+    </div>
+    <div>
+      <span style="font-size:11px">Number of Translations</span>
+      <select id="iTransCount" onchange="onTransCountChange()">
+        <option value="0">0 — Captioning only</option>
+        <option value="1">1 — Single translation</option>
+        <option value="2" selected>2 — Dual translation</option>
+        <option value="3">3 — Dual + extended window (1)</option>
+        <option value="4">4 — Dual + extended window (2)</option>
+        <option value="5">5 — Dual + extended window (3)</option>
+      </select>
+    </div>
+    <div id="transSlots"></div>
+    <div id="extNote" class="hint" style="display:none">Translations 3+ appear on the Extended display (port 3002)</div>
+  </div>
+
+  <!-- Speakers -->
+  <div class="card">
+    <span class="clbl">Speakers (keys 1-9, 0=none)</span>
+    <div class="spgrid" id="spGrid"></div>
+    <div class="row">
+      <input type="text" id="iNewSp" placeholder="Add speaker..." onkeydown="if(event.key==='Enter')addSp()">
+      <button class="btn btn-g" onclick="addSp()">Add</button>
+    </div>
+  </div>
+
+  <div class="card" style="border:2px solid rgba(76,175,80,.3);padding:10px">
+    <span class="clbl">Session Controls</span>
+    <button class="btn" id="liveBtn" onclick="toggleLive()" style="width:100%;padding:12px;font-size:14px;font-weight:800;background:#4CAF50;color:#fff;letter-spacing:.06em">▶ GO LIVE — Start Captioning</button>
+    <button class="btn" id="pauseBtn" onclick="togglePause()" style="width:100%;background:rgba(255,255,255,.08);color:rgba(255,255,255,.35);font-weight:800;border:1px solid rgba(255,255,255,.1)">▶ Resume Translation (uses API credits)</button>
+    <div class="hint" id="sessionHint">Both captioning and translation are paused. Configure your settings, then go live.</div>
+  </div>
+  <div class="card" style="flex-direction:row;align-items:center;justify-content:space-between;padding:10px 12px">
+    <div>
+      <span style="font-size:11px;font-weight:700">Save Transcripts</span>
+      <div class="hint">One .txt file per language in /transcripts</div>
+    </div>
+    <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+      <input type="checkbox" id="iSaveTranscripts" checked onchange="toggleSaveTranscripts()" style="opacity:0;width:0;height:0">
+      <span style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.15);border-radius:12px;transition:.3s"></span>
+      <span id="saveToggleKnob" style="position:absolute;top:2px;left:22px;width:20px;height:20px;background:#4CAF50;border-radius:50%;transition:.3s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+    </label>
+  </div>
+  <button class="btn btn-d" onclick="clearCaptions()" style="width:100%">Clear Captions (C)</button>
+
+  <!-- Display Styling -->
+  <div class="card">
+    <span class="clbl">Background</span>
+    <div class="bg-opts" id="bgOpts"></div>
+    <div style="height:12px"></div>
+
+    <span class="clbl">Font</span>
+    <div class="font-opts" id="fontOpts"></div>
+  </div>
+
+  <div class="card">
+    <span class="clbl">Font Size: <span class="vd" id="vFs">42px</span></span>
+    <input type="range" id="iFs" min="24" max="960" value="42" oninput="onFsChange(this.value)">
+    <div style="display:flex;justify-content:space-between" class="hint"><span>24px</span><span>960px</span></div>
+
+    <span class="clbl">Visible Lines: <span class="vd" id="vLn">3</span></span>
+    <input type="range" id="iLn" min="1" max="8" value="3" oninput="onLnChange(this.value)">
+    <div style="display:flex;justify-content:space-between" class="hint"><span>1</span><span>8</span></div>
+
+    <span class="clbl">Mic Sensitivity</span>
+    <input type="range" id="iMic" min="1" max="50" value="8" oninput="onMicChange(this.value)">
+    <div style="display:flex;justify-content:space-between" class="hint"><span>More sensitive</span><span>Less sensitive</span></div>
+  </div>
+
+  <!-- Text Colors -->
+  <div class="card">
+    <span class="clbl">Caption Text Color</span>
+    <div class="swatch-row" id="captionColors"></div>
+    <div id="transColors"></div>
+  </div>
+
+  <!-- Footer -->
+  <div class="card">
+    <span class="clbl">Footer Image (optional)</span>
+    <input type="file" id="iFooter" accept="image/*" onchange="uploadFooter(this)" style="font-size:11px">
+    <div id="footerPrev" style="display:none">
+      <img id="footerPrevImg" style="max-height:40px;border-radius:3px">
+      <button class="btn btn-g" onclick="rmFooter()" style="margin-top:4px;font-size:10px">Remove</button>
+    </div>
+  </div>
+
+  <div class="badge" id="badge">—</div>
+</div>
+
+<!-- Right: Preview -->
+<div class="preview">
+  <div class="prev-title">Live Preview (mirrors audience display)</div>
+  <div class="prev-box" id="prevBox">
+    <div class="prev-session" id="pTitle">Live Captioning</div>
+    <div class="prev-speaker" id="pSpeaker"></div>
+    <div id="pSections"></div>
+    <div class="prev-footer" id="pFooter" style="display:none"><img id="pFooterImg" src=""></div>
+  </div>
+</div>
+
+<script>
+let ws=null, recon=0, cfg={};
+let speakers=[], activeSp=0;
+let palette=[], bgOpts=[], fontOpts=[], srcLangs={}, tgtLangs={};
+let translations=[]; // [{lang, color}]
+let transCount=1;
+
+function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
+
+// ── Load config ──
+function loadCfg(){
+  fetch('/api/config').then(r=>r.json()).then(c=>{
+    cfg=c;
+    palette=c.color_palette||[];
+    bgOpts=c.bg_options||[];
+    fontOpts=c.font_options||[];
+    srcLangs=c.source_langs||{};
+    tgtLangs=c.target_langs||{};
+
+    document.getElementById('iTitle').value=c.session_title||'';
+    document.getElementById('iKey').value=c.deepl_api_key||'';
+    document.getElementById('iFs').value=c.font_size||42;
+    document.getElementById('vFs').textContent=(c.font_size||42)+'px';
+    document.getElementById('iLn').value=c.max_lines||3;
+    document.getElementById('vLn').textContent=c.max_lines||3;
+
+    transCount=c.translation_count||1;
+    document.getElementById('iTransCount').value=transCount;
+    translations=c.translations||[{lang:'ES',color:'#FFD54F'}];
+    speakers=c.speakers||[];
+
+    if(!c.has_api_key)document.getElementById('warn').style.display='block';
+    if(c.backend)document.getElementById('badge').textContent='Engine: '+c.backend;
+
+    buildInputLangSelect(c.input_lang||'EN');
+    buildBgOpts(c.bg_color||'#00004D');
+    buildFontOpts(c.font_family||'atkinson');
+    buildTransSlots();
+    buildColorSwatches();
+    buildSpeakerBtns();
+    updatePreview();
+    applyPreviewStyle();
+
+    if(c.footer_image){
+      document.getElementById('footerPrevImg').src='/uploads/'+c.footer_image;
+      document.getElementById('footerPrev').style.display='block';
+      document.getElementById('pFooterImg').src='/uploads/'+c.footer_image;
+      document.getElementById('pFooter').style.display='block';
+    }
+  });
+}
+loadCfg();
+
+// ── Input language select ──
+function buildInputLangSelect(cur){
+  const sel=document.getElementById('iInputLang');
+  sel.innerHTML='';
+  Object.entries(srcLangs).sort((a,b)=>a[1].localeCompare(b[1])).forEach(([code,name])=>{
+    const o=document.createElement('option');o.value=code;o.textContent=name+' ('+code+')';
+    if(code===cur)o.selected=true;
+    sel.appendChild(o);
+  });
+}
+
+// ── BG options ──
+function buildBgOpts(cur){
+  const el=document.getElementById('bgOpts');el.innerHTML='';
+  bgOpts.forEach(b=>{
+    const d=document.createElement('div');d.className='bg-opt'+(b.hex===cur?' active':'');
+    d.style.background=b.hex;d.title=b.name;
+    d.onclick=()=>{document.querySelectorAll('.bg-opt').forEach(x=>x.classList.remove('active'));d.classList.add('active');saveAll()};
+    const n=document.createElement('div');n.className='bg-name';n.textContent=b.name;d.appendChild(n);
+    el.appendChild(d);
+  });
+}
+
+// ── Font options ──
+function buildFontOpts(cur){
+  const el=document.getElementById('fontOpts');el.innerHTML='';
+  fontOpts.forEach(f=>{
+    const d=document.createElement('div');d.className='font-opt'+(f.id===cur?' active':'');
+    d.onclick=()=>{document.querySelectorAll('.font-opt').forEach(x=>x.classList.remove('active'));d.classList.add('active');saveAll()};
+    d.innerHTML=`<div><div class="fn" style="font-family:${f.css}">${f.name}</div><div class="fnote">${f.note}</div></div>`;
+    d.dataset.id=f.id;
+    el.appendChild(d);
+  });
+}
+
+// ── Translation slots ──
+function onTransCountChange(){
+  transCount=parseInt(document.getElementById('iTransCount').value);
+  // Extend or shrink translations array
+  while(translations.length<transCount){
+    const defaultColors=['#FFD54F','#4FC3F7','#81C784','#FF8A80','#CE93D8'];
+    translations.push({lang:'ES',color:defaultColors[translations.length%5]});
+  }
+  translations=translations.slice(0,transCount);
+  buildTransSlots();
+  buildColorSwatches();
+  saveAll();
+}
+
+function buildTransSlots(){
+  const el=document.getElementById('transSlots');el.innerHTML='';
+  const note=document.getElementById('extNote');
+  note.style.display=transCount>2?'block':'none';
+
+  for(let i=0;i<transCount;i++){
+    const t=translations[i]||{lang:'ES',color:'#FFD54F'};
+    const dest=i<2?'Main display (3000)':'Extended display (3002)';
+    const slot=document.createElement('div');slot.className='tslot';
+    slot.innerHTML=`
+      <div class="tslot-hdr"><span class="tslot-num">Translation ${i+1}</span><span class="tslot-dest">${dest}</span></div>
+      <select onchange="onSlotLangChange(${i},this.value)" id="tslot_lang_${i}"></select>`;
+    el.appendChild(slot);
+    // Populate language dropdown
+    const sel=slot.querySelector('select');
+    Object.entries(tgtLangs).sort((a,b)=>a[1].localeCompare(b[1])).forEach(([code,name])=>{
+      const o=document.createElement('option');o.value=code;o.textContent=name+' ('+code+')';
+      if(code===t.lang)o.selected=true;
+      sel.appendChild(o);
+    });
+  }
+}
+
+function onSlotLangChange(idx,lang){
+  if(translations[idx])translations[idx].lang=lang;
+  saveAll();
+}
+
+// ── Color swatches ──
+function buildColorSwatches(){
+  // Caption color
+  const cc=document.getElementById('captionColors');cc.innerHTML='';
+  const curCap=cfg.caption_color||'#FFFFFF';
+  palette.forEach(c=>{
+    const s=document.createElement('div');s.className='swatch'+(c.hex===curCap?' active':'');
+    s.style.background=c.hex;s.title=c.name;
+    s.onclick=()=>{cc.querySelectorAll('.swatch').forEach(x=>x.classList.remove('active'));s.classList.add('active');saveAll()};
+    cc.appendChild(s);
+  });
+
+  // Translation colors
+  const tc=document.getElementById('transColors');tc.innerHTML='';
+  for(let i=0;i<transCount;i++){
+    const t=translations[i]||{color:'#FFD54F'};
+    const wrap=document.createElement('div');wrap.style.marginTop='8px';
+    wrap.innerHTML=`<span class="clbl">Translation ${i+1} Color</span>`;
+    const row=document.createElement('div');row.className='swatch-row';row.style.marginTop='4px';
+    palette.forEach(c=>{
+      const s=document.createElement('div');s.className='swatch'+(c.hex===t.color?' active':'');
+      s.style.background=c.hex;s.title=c.name;
+      s.onclick=()=>{row.querySelectorAll('.swatch').forEach(x=>x.classList.remove('active'));s.classList.add('active');translations[i].color=c.hex;saveAll()};
+      row.appendChild(s);
+    });
+    wrap.appendChild(row);tc.appendChild(wrap);
+  }
+}
+
+// ── Speakers ──
+function buildSpeakerBtns(){
+  const el=document.getElementById('spGrid');
+  let h=`<button class="spbtn spwide${activeSp===0?' act':''}" onclick="setSp(0)">No Label<span class="hk">0</span></button>`;
+  speakers.forEach((n,i)=>{
+    h+=`<button class="spbtn${activeSp===i+1?' act':''}" onclick="setSp(${i+1})">${esc(n)}<span class="hk">${i+1}</span></button>`;
+  });
+  el.innerHTML=h;
+}
+function setSp(idx){
+  activeSp=idx;
+  const name=(idx>0&&idx<=speakers.length)?speakers[idx-1]:'';
+  document.getElementById('pSpeaker').textContent=name;
+  buildSpeakerBtns();
+  if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'set_speaker',speaker:name}));
+}
+function addSp(){
+  const inp=document.getElementById('iNewSp');
+  const n=inp.value.trim();if(!n||speakers.length>=9)return;
+  speakers.push(n);inp.value='';buildSpeakerBtns();saveAll();
+}
+
+let translationPaused = true;
+let captioningPaused = true;
+let saveTranscriptsEnabled = true;
+
+function toggleLive(){
+  captioningPaused = !captioningPaused;
+  const btn = document.getElementById('liveBtn');
+  if(captioningPaused){
+    btn.textContent = '▶ GO LIVE — Start Captioning';
+    btn.style.background = '#4CAF50';
+    btn.style.color = '#fff';
+  } else {
+    btn.textContent = '⏸ PAUSE CAPTIONING';
+    btn.style.background = '#f44336';
+    btn.style.color = '#fff';
+  }
+  updateSessionHint();
+  if(ws&&ws.readyState===1) ws.send(JSON.stringify({type:'set_captioning_paused', paused:captioningPaused}));
+}
+
+function togglePause(){
+  translationPaused = !translationPaused;
+  const btn = document.getElementById('pauseBtn');
+  if(translationPaused){
+    btn.textContent = '▶ Resume Translation (uses API credits)';
+    btn.style.background = 'rgba(255,255,255,.08)';
+    btn.style.color = 'rgba(255,255,255,.35)';
+    btn.style.borderColor = 'rgba(255,255,255,.1)';
+  } else {
+    btn.textContent = '⏸ Pause Translation';
+    btn.style.background = '#FF9800';
+    btn.style.color = '#000';
+    btn.style.borderColor = '#FF9800';
+  }
+  updateSessionHint();
+  if(ws&&ws.readyState===1) ws.send(JSON.stringify({type:'set_translation_paused', paused:translationPaused}));
+}
+
+function updateSessionHint(){
+  const h = document.getElementById('sessionHint');
+  if(captioningPaused && translationPaused) h.textContent='Both captioning and translation are paused. Configure settings, then go live.';
+  else if(captioningPaused) h.textContent='Captioning is paused. Press GO LIVE when ready.';
+  else if(translationPaused) h.textContent='LIVE — Captioning active. Translation paused (no API usage).';
+  else h.textContent='LIVE — Captioning and translation both active.';
+}
+
+function toggleSaveTranscripts(){
+  saveTranscriptsEnabled = document.getElementById('iSaveTranscripts').checked;
+  updateSaveToggleUI();
+  if(ws&&ws.readyState===1) ws.send(JSON.stringify({type:'set_save_transcripts', enabled:saveTranscriptsEnabled}));
+}
+
+function updateSaveToggleUI(){
+  const knob = document.getElementById('saveToggleKnob');
+  const cb = document.getElementById('iSaveTranscripts');
+  cb.checked = saveTranscriptsEnabled;
+  if(saveTranscriptsEnabled){
+    knob.style.left='22px'; knob.style.background='#4CAF50';
+  } else {
+    knob.style.left='2px'; knob.style.background='#888';
+  }
+}
+
+function clearCaptions(){
+  // Clear preview
+  document.querySelectorAll('.prev-text').forEach(e=>{e.innerHTML='<span style="opacity:.15;font-style:italic">...</span>'});
+  if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'clear_captions'}));
+}
+
+// ── Sliders ──
+function onFsChange(v){document.getElementById('vFs').textContent=v+'px';saveAll()}
+function onLnChange(v){document.getElementById('vLn').textContent=v;saveAll()}
+function onMicChange(v){if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'set_threshold',value:v/1000}))}
+
+// ── Footer ──
+function uploadFooter(inp){
+  if(!inp.files[0])return;
+  const fd=new FormData();fd.append('file',inp.files[0]);
+  fetch('/api/upload-footer',{method:'POST',body:fd}).then(r=>r.json()).then(r=>{
+    if(r.filename){
+      const u='/uploads/'+r.filename+'?t='+Date.now();
+      document.getElementById('footerPrevImg').src=u;document.getElementById('footerPrev').style.display='block';
+      document.getElementById('pFooterImg').src=u;document.getElementById('pFooter').style.display='block';
+    }
+  });
+}
+function rmFooter(){
+  fetch('/api/remove-footer',{method:'POST'}).then(()=>{
+    document.getElementById('footerPrev').style.display='none';document.getElementById('pFooter').style.display='none';
+  });
+}
+
+// ── Save all config ──
+function saveAll(){
+  const fd=new FormData();
+  fd.append('session_title',document.getElementById('iTitle').value);
+  fd.append('deepl_api_key',document.getElementById('iKey').value);
+  fd.append('input_lang',document.getElementById('iInputLang').value);
+  fd.append('translation_count',transCount);
+  fd.append('translations_json',JSON.stringify(translations));
+  fd.append('speakers',JSON.stringify(speakers));
+  fd.append('font_size',document.getElementById('iFs').value);
+  fd.append('max_lines',document.getElementById('iLn').value);
+  // Get active BG
+  const abg=document.querySelector('.bg-opt.active');
+  if(abg)fd.append('bg_color',abg.style.background);
+  // Get active font
+  const af=document.querySelector('.font-opt.active');
+  if(af)fd.append('font_family',af.dataset.id);
+  // Get caption color
+  const ac=document.querySelector('#captionColors .swatch.active');
+  if(ac)fd.append('caption_color',ac.style.background);
+
+  fetch('/api/config',{method:'POST',body:fd}).then(r=>r.json()).then(()=>{
+    document.getElementById('pTitle').textContent=document.getElementById('iTitle').value||'Live Captioning';
+    const hasKey=!!document.getElementById('iKey').value;
+    document.getElementById('warn').style.display=hasKey?'none':'block';
+    applyPreviewStyle();
+    updatePreview();
+  });
+}
+
+// ── Preview ──
+function applyPreviewStyle(){
+  const box=document.getElementById('prevBox');
+  const abg=document.querySelector('.bg-opt.active');
+  if(abg)box.style.background=abg.style.background;
+}
+
+function updatePreview(){
+  const el=document.getElementById('pSections');el.innerHTML='';
+  const inputName=srcLangs[document.getElementById('iInputLang').value]||'English';
+  const capColor=document.querySelector('#captionColors .swatch.active');
+  const cc=capColor?capColor.style.background:'#fff';
+
+  // Caption section
+  let h=`<div class="prev-section"><div class="prev-lbl">${esc(inputName)} Captioning</div>
+    <div class="prev-text" id="pCaption" style="color:${cc}"><span style="opacity:.15;font-style:italic">Waiting...</span></div></div>`;
+
+  // Translation sections
+  for(let i=0;i<transCount;i++){
+    const t=translations[i]||{lang:'ES',color:'#FFD54F'};
+    const name=tgtLangs[t.lang]||t.lang;
+    const dest=i<2?'':'<span style="opacity:.3;font-size:8px"> (ext)</span>';
+    h+=`<div class="prev-divider"></div>
+    <div class="prev-section"><div class="prev-lbl">${esc(name)}${dest}</div>
+    <div class="prev-text" id="pTrans${i}" style="color:${t.color}"><span style="opacity:.15;font-style:italic">...</span></div></div>`;
+  }
+  el.innerHTML=h;
+}
+
+// ── WebSocket ──
+function connect(){
+  ws=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws`);
+  ws.onopen=()=>{recon=0;document.getElementById('sDot').className='dot conn';document.getElementById('sTxt').textContent='Connected'};
+  ws.onmessage=e=>{
+    const m=JSON.parse(e.data);
+    if(m.type==='status'){
+      if(m.model)document.getElementById('badge').textContent='Engine: '+m.model;
+      if(m.state==='speech')document.getElementById('sTxt').textContent='Speech detected...';
+      else if(m.state==='silence')document.getElementById('sTxt').textContent='Connected — listening';
+    }
+    else if(m.type==='interim'){
+      const el=document.getElementById('pCaption');
+      if(el&&m.text)el.innerHTML=`<span class="prev-interim">${esc(m.text)}</span>`;
+    }
+    else if(m.type==='final'){
+      const el=document.getElementById('pCaption');
+      if(el&&m.text)el.textContent=m.text;
+    }
+    else if(m.type==='interim_translation'){
+      if(m.slot!==undefined){const el=document.getElementById('pTrans'+m.slot);
+        if(el&&m.translated)el.innerHTML=`<span class="prev-interim">${esc(m.translated)}</span>`}
+    }
+    else if(m.type==='final_translation'){
+      if(m.slot!==undefined){const el=document.getElementById('pTrans'+m.slot);
+        if(el&&m.translated)el.textContent=m.translated}
+    }
+    else if(m.type==='config_update'){
+      document.getElementById('pTitle').textContent=m.session_title||'Live Captioning';
+    }
+    else if(m.type==='translation_paused'){
+      translationPaused=m.paused;
+      const btn=document.getElementById('pauseBtn');
+      if(translationPaused){btn.textContent='▶ Resume Translation (uses API credits)';btn.style.background='rgba(255,255,255,.08)';btn.style.color='rgba(255,255,255,.35)';btn.style.borderColor='rgba(255,255,255,.1)'}
+      else{btn.textContent='⏸ Pause Translation';btn.style.background='#FF9800';btn.style.color='#000';btn.style.borderColor='#FF9800'}
+      updateSessionHint();
+    }
+    else if(m.type==='captioning_paused'){
+      captioningPaused=m.paused;
+      const btn=document.getElementById('liveBtn');
+      if(captioningPaused){btn.textContent='▶ GO LIVE — Start Captioning';btn.style.background='#4CAF50';btn.style.color='#fff'}
+      else{btn.textContent='⏸ PAUSE CAPTIONING';btn.style.background='#f44336';btn.style.color='#fff'}
+      updateSessionHint();
+    }
+    else if(m.type==='save_transcripts'){
+      saveTranscriptsEnabled=m.enabled;
+      updateSaveToggleUI();
+    }
+  };
+  ws.onclose=()=>{
+    document.getElementById('sDot').className='dot';
+    document.getElementById('sTxt').textContent='Reconnecting...';
+    if(recon<50)setTimeout(connect,Math.min(1000*Math.pow(1.5,recon++),10000));
+  };
+}
+connect();
+
+// ── Keyboard ──
+document.addEventListener('keydown',e=>{
+  if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName))return;
+  if(e.key==='c'||e.key==='C'){clearCaptions();return}
+  if(e.key==='p'||e.key==='P'){togglePause();return}
+  if(e.key==='l'||e.key==='L'){toggleLive();return}
+  if(e.key==='0'){setSp(0);return}
+  const n=parseInt(e.key);
+  if(n>=1&&n<=9&&n<=speakers.length)setSp(n);
+});
+</script>
+</body>
+</html>

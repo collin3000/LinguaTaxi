@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#0f3460"/>
+    </linearGradient>
+    <linearGradient id="taxi" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFE082"/>
+      <stop offset="100%" style="stop-color:#FFD54F"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Taxi body -->
+  <rect x="100" y="200" width="312" height="120" rx="24" fill="url(#taxi)"/>
+  <!-- Taxi roof / light bar -->
+  <rect x="180" y="168" width="152" height="40" rx="12" fill="#FFE082"/>
+  <!-- Roof light -->
+  <circle cx="256" cy="162" r="14" fill="#4FC3F7"/>
+  <circle cx="256" cy="162" r="8" fill="#81D4FA" opacity="0.8"/>
+  <!-- Windows -->
+  <rect x="132" y="218" width="100" height="56" rx="8" fill="#16213e" opacity="0.85"/>
+  <rect x="248" y="218" width="132" height="56" rx="8" fill="#16213e" opacity="0.85"/>
+  <!-- Caption lines in windows (representing text) -->
+  <rect x="145" y="232" width="72" height="4" rx="2" fill="#4FC3F7" opacity="0.9"/>
+  <rect x="145" y="242" width="60" height="4" rx="2" fill="#4FC3F7" opacity="0.6"/>
+  <rect x="145" y="252" width="68" height="4" rx="2" fill="#FFD54F" opacity="0.7"/>
+  <rect x="260" y="232" width="108" height="4" rx="2" fill="#4FC3F7" opacity="0.9"/>
+  <rect x="260" y="242" width="88" height="4" rx="2" fill="#81C784" opacity="0.7"/>
+  <rect x="260" y="252" width="96" height="4" rx="2" fill="#FF8A80" opacity="0.7"/>
+  <rect x="260" y="262" width="72" height="4" rx="2" fill="#CE93D8" opacity="0.6"/>
+  <!-- Wheels -->
+  <circle cx="172" cy="320" r="28" fill="#1a1a2e"/>
+  <circle cx="172" cy="320" r="16" fill="#333"/>
+  <circle cx="172" cy="320" r="6" fill="#555"/>
+  <circle cx="340" cy="320" r="28" fill="#1a1a2e"/>
+  <circle cx="340" cy="320" r="16" fill="#333"/>
+  <circle cx="340" cy="320" r="6" fill="#555"/>
+  <!-- Speech bubble / translation indicator -->
+  <path d="M350 120 Q390 80 430 100 Q460 115 445 150 Q435 175 405 175 L380 175 L370 195 L375 170 Q350 160 350 140 Z" fill="#4FC3F7" opacity="0.9"/>
+  <rect x="370" y="118" width="50" height="4" rx="2" fill="#fff" opacity="0.9"/>
+  <rect x="370" y="128" width="38" height="4" rx="2" fill="#fff" opacity="0.7"/>
+  <rect x="370" y="138" width="44" height="4" rx="2" fill="#FFD54F" opacity="0.8"/>
+  <rect x="370" y="148" width="32" height="4" rx="2" fill="#81C784" opacity="0.7"/>
+  <!-- "TAXI" text area on side -->
+  <rect x="160" y="288" width="64" height="18" rx="4" fill="#1a1a2e" opacity="0.3"/>
+  <!-- Ground line -->
+  <rect x="80" y="348" width="352" height="4" rx="2" fill="#4FC3F7" opacity="0.15"/>
+  <!-- Brand text -->
+  <text x="256" y="415" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="42" fill="#e8e8e8" letter-spacing="3">LINGUATAXI</text>
+  <text x="256" y="445" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="400" font-size="18" fill="#4FC3F7" letter-spacing="6">LIVE CAPTION</text>
+</svg>

@@ -1,0 +1,21 @@
+{
+  "deepl_api_key": "",
+  "session_title": "test",
+  "input_lang": "EN",
+  "translation_count": 1,
+  "translations": [
+    {
+      "lang": "ES",
+      "color": "#FFD54F"
+    }
+  ],
+  "speakers": [],
+  "footer_image": null,
+  "font_size": 42,
+  "max_lines": 5,
+  "bg_color": "rgb(0, 0, 77)",
+  "font_family": "atkinson",
+  "caption_color": "rgb(255, 255, 255)",
+  "backend": "whisper",
+  "target_lang": "ES"
+}
