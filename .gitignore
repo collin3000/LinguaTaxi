@@ -7,6 +7,7 @@ venv/
 models/
 
 # Runtime
+config.json
 uploads/
 *.log
 

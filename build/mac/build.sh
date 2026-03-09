@@ -47,6 +47,7 @@ cp "$PROJECT_DIR/server.py" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/launcher.pyw" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/display.html" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/operator.html" "$APP_BUNDLE/Contents/Resources/"
+cp "$PROJECT_DIR/dictation.html" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/requirements.txt" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/download_models.py" "$APP_BUNDLE/Contents/Resources/"
 

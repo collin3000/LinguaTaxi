@@ -48,6 +48,7 @@ Source: "..\..\launcher.pyw"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\download_models.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\display.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\operator.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\dictation.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 ; ── Assets ──
