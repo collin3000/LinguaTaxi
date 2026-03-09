@@ -17,47 +17,20 @@ def download_whisper_model():
     """Pre-download faster-whisper large-v3-turbo model."""
     try:
         from faster_whisper import WhisperModel
-        model_name = "large-v3-turbo"
-        print(f"\n  Downloading Whisper model: {model_name}")
-        print(f"  This is ~1.5 GB and may take several minutes...\n")
-
-        # Detect device
-        import torch
-        if torch.cuda.is_available():
-            device, compute = "cuda", "float16"
-            print(f"  NVIDIA GPU detected — using CUDA")
-        else:
-            device, compute = "cpu", "int8"
-            print(f"  No GPU detected — using CPU (int8)")
-
-        # This triggers the HuggingFace download + cache
-        model = WhisperModel(model_name, device=device, compute_type=compute)
-        del model
-        print(f"\n  [OK] Whisper model '{model_name}' ready!")
-        return True
-
     except ImportError:
         return False
-    except Exception as e:
-        print(f"\n  [WARNING] Whisper model download failed: {e}")
-        print(f"  The model will download automatically on first server start.")
-        return False
 
+    model_name = "large-v3-turbo"
+    print(f"\n  Downloading Whisper model: {model_name}")
+    print(f"  This is ~1.5 GB and may take several minutes...\n")
 
-def download_whisper_model_no_torch():
-    """Fallback: try faster-whisper without torch check."""
+    # Always download using CPU mode — just caching the model files.
+    # GPU detection happens at runtime in server.py, not here.
     try:
-        from faster_whisper import WhisperModel
-        model_name = "large-v3-turbo"
-        print(f"\n  Downloading Whisper model: {model_name}")
-        print(f"  This is ~1.5 GB and may take several minutes...\n")
-
-        # Try CPU first (safest)
         model = WhisperModel(model_name, device="cpu", compute_type="int8")
         del model
         print(f"\n  [OK] Whisper model '{model_name}' ready!")
         return True
-
     except Exception as e:
         print(f"\n  [WARNING] Whisper model download failed: {e}")
         print(f"  The model will download automatically on first server start.")
@@ -139,10 +112,7 @@ def main():
 
     if has_whisper:
         print("\n  Backend: faster-whisper (GPU/CPU)")
-        try:
-            ok = download_whisper_model()
-        except Exception:
-            ok = download_whisper_model_no_torch()
+        ok = download_whisper_model()
         if not ok and has_vosk:
             print("\n  Whisper failed, trying Vosk as backup...")
             download_vosk_model()

@@ -57,7 +57,14 @@ from fastapi.responses import FileResponse, JSONResponse
 
 # ── Paths ──
 BASE_DIR = Path(__file__).parent
-CONFIG_PATH = BASE_DIR / "config.json"
+if sys.platform == "win32":
+    _config_dir = Path(os.environ.get("APPDATA", Path.home())) / "LinguaTaxi"
+elif sys.platform == "darwin":
+    _config_dir = Path.home() / "Library" / "Application Support" / "LinguaTaxi"
+else:
+    _config_dir = Path.home() / ".config" / "linguataxi"
+_config_dir.mkdir(parents=True, exist_ok=True)
+CONFIG_PATH = _config_dir / "config.json"
 UPLOADS_DIR = BASE_DIR / "uploads"
 MODELS_DIR = BASE_DIR / "models"
 TRANSCRIPTS_DIR = Path(os.environ.get("LINGUATAXI_TRANSCRIPTS",

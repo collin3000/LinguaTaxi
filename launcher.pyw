@@ -299,10 +299,17 @@ class LinguaTaxiApp(tk.Tk):
         # Backend
         ttk.Label(settings_frame, text="Speech Backend:",
                   style="Section.TLabel").pack(anchor="w")
-        self.backend_var = tk.StringVar(value=self.settings.get("backend", "auto"))
+        self._backend_labels = {"auto": "auto", "whisper": "whisper (best)",
+                                 "vosk": "vosk (CPU only)", "mlx": "mlx (Apple Silicon)"}
+        self._backend_from_label = {v: k for k, v in self._backend_labels.items()}
+        stored_backend = self.settings.get("backend", "auto")
+        self.backend_var = tk.StringVar(value=self._backend_labels.get(stored_backend, stored_backend))
+        backend_values = ["auto", "whisper (best)", "vosk (CPU only)"]
+        if IS_MAC:
+            backend_values.append("mlx (Apple Silicon)")
         backend_combo = ttk.Combobox(settings_frame, textvariable=self.backend_var,
                                       state="readonly", font=("Segoe UI", 9),
-                                      values=["auto", "whisper", "vosk", "mlx"])
+                                      values=backend_values)
         backend_combo.pack(fill="x", pady=(2, 0))
 
         # ── Log Area ──
@@ -377,7 +384,7 @@ class LinguaTaxiApp(tk.Tk):
         cmd = [python, str(SERVER_PY)]
 
         # Backend
-        backend = self.backend_var.get()
+        backend = self._backend_from_label.get(self.backend_var.get(), self.backend_var.get())
         if backend and backend != "auto":
             cmd.extend(["--backend", backend])
 
@@ -729,7 +736,7 @@ class LinguaTaxiApp(tk.Tk):
     def _save_current_settings(self):
         self.settings["transcripts_dir"] = self.tdir_var.get().strip()
         self.settings["mic_index"] = self._get_selected_mic_index()
-        self.settings["backend"] = self.backend_var.get()
+        self.settings["backend"] = self._backend_from_label.get(self.backend_var.get(), self.backend_var.get())
         self.settings["window_geometry"] = self.geometry()
         save_settings(self.settings)
 
