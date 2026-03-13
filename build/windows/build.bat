@@ -127,6 +127,9 @@ echo   Installing base packages...
 echo   Installing Vosk (CPU speech backend)...
 "%VENV_LITE%\Scripts\pip.exe" install vosk >> "%SCRIPT_DIR%build_log.txt" 2>&1
 
+echo   Installing offline translation packages...
+"%VENV_LITE%\Scripts\pip.exe" install sentencepiece ctranslate2 huggingface_hub >> "%SCRIPT_DIR%build_log.txt" 2>&1
+
 echo   [OK] Lite venv ready (Vosk CPU)
 
 :lite_ready
@@ -161,6 +164,13 @@ echo   Installing faster-whisper (GPU speech backend)...
 echo   Installing Vosk (CPU fallback)...
 "%VENV_FULL%\Scripts\pip.exe" install vosk >> "%SCRIPT_DIR%build_log.txt" 2>&1
 
+echo   Installing offline translation packages...
+"%VENV_FULL%\Scripts\pip.exe" install sentencepiece ctranslate2 huggingface_hub >> "%SCRIPT_DIR%build_log.txt" 2>&1
+
+echo   Installing model conversion tools (transformers + torch-cpu)...
+"%VENV_FULL%\Scripts\pip.exe" install torch --index-url https://download.pytorch.org/whl/cpu >> "%SCRIPT_DIR%build_log.txt" 2>&1
+"%VENV_FULL%\Scripts\pip.exe" install transformers >> "%SCRIPT_DIR%build_log.txt" 2>&1
+
 echo   Installing NVIDIA CUDA libraries (~1.2 GB download)...
 echo   (This may take several minutes)
 "%VENV_FULL%\Scripts\pip.exe" install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cuda-runtime-cu12 >> "%SCRIPT_DIR%build_log.txt" 2>&1
@@ -178,34 +188,73 @@ echo   [OK] Full venv ready (faster-whisper + Vosk + CUDA)
 if exist "%PROJECT_DIR%\assets\linguataxi.ico" (
     echo   [OK] Icon found
 ) else (
-    echo   [--] No icon — run: python assets\generate_icons.py
+    echo   [--] No icon -- run: python assets\generate_icons.py
 )
 
-:: ── Step 6: Compile both installers ──
+:: ── Step 6: Pre-download speech models ──
+set "MODELS_PRE=%SCRIPT_DIR%models_prebuilt"
+mkdir "%MODELS_PRE%" 2>nul
+
+:: Download Whisper model (CTranslate2 format, ~1.5 GB)
+if exist "%MODELS_PRE%\faster-whisper-large-v3-turbo\model.bin" (
+    echo   [OK] Whisper model already downloaded
+    goto :whisper_done
+)
+
+echo.
+echo   Downloading Whisper model [faster-whisper-large-v3-turbo, ~1.5 GB]
+echo   This may take several minutes...
+"%VENV_FULL%\Scripts\python.exe" -c "from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-large-v3-turbo', local_dir=r'%MODELS_PRE%\faster-whisper-large-v3-turbo'); print('  [OK] Whisper model downloaded')" >> "%SCRIPT_DIR%build_log.txt" 2>&1
+if exist "%MODELS_PRE%\faster-whisper-large-v3-turbo\model.bin" (
+    echo   [OK] Whisper model downloaded
+) else (
+    echo   [FAIL] Whisper model download failed -- check build_log.txt
+)
+
+:whisper_done
+
+:: Download Vosk small model (~40 MB)
+if exist "%MODELS_PRE%\vosk-model-small-en-us-0.15\README" (
+    echo   [OK] Vosk model already downloaded
+    goto :vosk_done
+)
+
+echo.
+echo   Downloading Vosk model [vosk-model-small-en-us-0.15, ~40 MB]
+"%PYTHON_DIR%\python.exe" -c "import urllib.request,zipfile,os; p=r'%MODELS_PRE%'; urllib.request.urlretrieve('https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip',os.path.join(p,'vosk.zip')); zipfile.ZipFile(os.path.join(p,'vosk.zip')).extractall(p); os.unlink(os.path.join(p,'vosk.zip')); print('OK')" >> "%SCRIPT_DIR%build_log.txt" 2>&1
+if exist "%MODELS_PRE%\vosk-model-small-en-us-0.15" (
+    echo   [OK] Vosk model downloaded
+) else (
+    echo   [FAIL] Vosk model download failed -- check build_log.txt
+)
+
+:vosk_done
+
+:: ── Step 7: Compile both installers ──
 mkdir "%DIST_DIR%" 2>nul
 
 echo.
-echo   ── Compiling Lite installer ──
+echo   --- Compiling CPU Only installer ---
 echo.
 
 "%ISCC%" /DEDITION=Lite "%SCRIPT_DIR%installer.iss"
 
 if !ERRORLEVEL! EQU 0 (
-    echo   [OK] Lite installer built
+    echo   [OK] CPU Only installer built
 ) else (
-    echo   [FAIL] Lite installer — check errors above.
+    echo   [FAIL] CPU Only installer -- check errors above.
 )
 
 echo.
-echo   ── Compiling Full installer ──
+echo   --- Compiling CPU+GPU installer ---
 echo.
 
 "%ISCC%" /DEDITION=Full "%SCRIPT_DIR%installer.iss"
 
 if !ERRORLEVEL! EQU 0 (
-    echo   [OK] Full installer built
+    echo   [OK] CPU+GPU installer built
 ) else (
-    echo   [FAIL] Full installer — check errors above.
+    echo   [FAIL] CPU+GPU installer -- check errors above.
 )
 
 echo.
@@ -214,17 +263,18 @@ echo     BUILD COMPLETE
 echo   ========================================
 echo.
 echo   Output:
-if exist "%DIST_DIR%\LinguaTaxi-Setup-1.0.0.exe" (
-    echo     dist\LinguaTaxi-Setup-1.0.0.exe       (Full, GPU + CPU)
+if exist "%DIST_DIR%\LinguaTaxi-GPU-Setup-1.0.0.exe" (
+    echo     dist\LinguaTaxi-GPU-Setup-1.0.0.exe   (CPU+GPU Best Accuracy)
 )
-if exist "%DIST_DIR%\LinguaTaxi-Lite-Setup-1.0.0.exe" (
-    echo     dist\LinguaTaxi-Lite-Setup-1.0.0.exe  (Lite, CPU only)
+if exist "%DIST_DIR%\LinguaTaxi-CPU-Setup-1.0.0.exe" (
+    echo     dist\LinguaTaxi-CPU-Setup-1.0.0.exe   (CPU Only)
 )
 echo.
 echo   To rebuild from scratch, delete:
 echo     build\windows\python_dist\
 echo     build\windows\venv_lite\
 echo     build\windows\venv_full\
+echo     build\windows\models_prebuilt\
 echo.
 
 if not defined CI pause

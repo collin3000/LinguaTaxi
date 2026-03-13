@@ -101,29 +101,42 @@ def download_vosk_model():
         return False
 
 
-def main():
+def main(backend="auto"):
     print("=" * 50)
     print("  LinguaTaxi — Model Pre-Download")
     print("=" * 50)
 
-    # Detect which backend is installed
     has_whisper = importlib.util.find_spec("faster_whisper") is not None
     has_vosk = importlib.util.find_spec("vosk") is not None
 
-    if has_whisper:
-        print("\n  Backend: faster-whisper (GPU/CPU)")
-        ok = download_whisper_model()
-        if not ok and has_vosk:
-            print("\n  Whisper failed, trying Vosk as backup...")
-            download_vosk_model()
+    if backend == "whisper":
+        if has_whisper:
+            print("\n  Backend: faster-whisper (GPU/CPU)")
+            download_whisper_model()
+        else:
+            print("\n  [WARNING] faster-whisper not installed!")
 
-    elif has_vosk:
-        print("\n  Backend: Vosk (CPU)")
-        download_vosk_model()
+    elif backend == "vosk":
+        if has_vosk:
+            print("\n  Backend: Vosk (CPU)")
+            download_vosk_model()
+        else:
+            print("\n  [WARNING] vosk not installed!")
 
     else:
-        print("\n  [WARNING] No speech backend found!")
-        print("  Run 'Repair Dependencies' from Start Menu to fix.")
+        # Auto-detect
+        if has_whisper:
+            print("\n  Backend: faster-whisper (GPU/CPU)")
+            ok = download_whisper_model()
+            if not ok and has_vosk:
+                print("\n  Whisper failed, trying Vosk as backup...")
+                download_vosk_model()
+        elif has_vosk:
+            print("\n  Backend: Vosk (CPU)")
+            download_vosk_model()
+        else:
+            print("\n  [WARNING] No speech backend found!")
+            print("  Run 'Repair Dependencies' from Start Menu to fix.")
 
     print("\n" + "=" * 50)
     print("  Model setup complete!")
@@ -131,4 +144,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="LinguaTaxi — Model Pre-Download")
+    parser.add_argument("--backend", choices=["whisper", "vosk", "auto"], default="auto",
+                        help="Which backend model to download (default: auto-detect)")
+    args = parser.parse_args()
+    main(args.backend)

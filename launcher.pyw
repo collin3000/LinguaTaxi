@@ -4,7 +4,7 @@ LinguaTaxi — Live Caption & Translation
 Desktop launcher with server management and browser integration.
 """
 
-import json, os, platform, queue, re, signal, subprocess, sys, threading, time, webbrowser
+import json, os, platform, queue, re, shutil, signal, subprocess, sys, threading, time, webbrowser
 from pathlib import Path
 
 import tkinter as tk
@@ -102,6 +102,7 @@ class LinguaTaxiApp(tk.Tk):
         self.server_proc = None
         self.log_queue = queue.Queue()
         self._server_running = False
+        self._server_ready = False
         self._closing = False
 
         self._setup_window()
@@ -164,7 +165,7 @@ class LinguaTaxiApp(tk.Tk):
         style.configure("Title.TLabel", font=("Segoe UI", 20, "bold"), foreground=self.ACCENT)
         style.configure("Subtitle.TLabel", font=("Segoe UI", 10), foreground=self.FG2)
         style.configure("Status.TLabel", font=("Segoe UI", 10, "bold"), foreground=self.FG2)
-        style.configure("Section.TLabel", font=("Segoe UI", 9, "bold"),
+        style.configure("Section.TLabel", font=("Segoe UI", 10, "bold"),
                          foreground=self.ACCENT, background=self.BG)
 
         style.configure("TButton", padding=(12, 6), font=("Segoe UI", 10),
@@ -189,10 +190,26 @@ class LinguaTaxiApp(tk.Tk):
                    background=[("active", self.ACCENT)],
                    foreground=[("active", "#000"), ("disabled", "#555")])
 
-        style.configure("TCombobox", fieldbackground=self.BG2, foreground=self.FG)
+        style.configure("TCombobox", fieldbackground=self.BG2, foreground=self.FG,
+                         selectbackground=self.BG2, selectforeground=self.FG,
+                         arrowcolor=self.FG, font=("Segoe UI", 10))
+        style.map("TCombobox",
+                   fieldbackground=[("readonly", self.BG2), ("disabled", "#333")],
+                   foreground=[("readonly", self.FG), ("disabled", "#666")],
+                   selectbackground=[("readonly", self.BG2)],
+                   selectforeground=[("readonly", self.FG)],
+                   arrowcolor=[("readonly", self.FG), ("disabled", "#666")])
+
+        # Style the dropdown popup listbox (not reachable via ttk.Style)
+        self.option_add("*TCombobox*Listbox.background", self.BG2)
+        self.option_add("*TCombobox*Listbox.foreground", self.FG)
+        self.option_add("*TCombobox*Listbox.selectBackground", self.ACCENT)
+        self.option_add("*TCombobox*Listbox.selectForeground", "#000")
+        self.option_add("*TCombobox*Listbox.font", ("Segoe UI", 10))
+
         style.configure("TLabelframe", background=self.BG, foreground=self.ACCENT)
         style.configure("TLabelframe.Label", background=self.BG,
-                         foreground=self.ACCENT, font=("Segoe UI", 9, "bold"))
+                         foreground=self.ACCENT, font=("Segoe UI", 10, "bold"))
 
     # ── Build UI ──
 
@@ -281,7 +298,7 @@ class LinguaTaxiApp(tk.Tk):
         self.tdir_var = tk.StringVar(value=self.settings.get("transcripts_dir",
                                      str(DEFAULT_TRANSCRIPTS)))
         self.tdir_entry = ttk.Entry(tdir_row, textvariable=self.tdir_var,
-                                     font=("Segoe UI", 9))
+                                     font=("Segoe UI", 10))
         self.tdir_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
         ttk.Button(tdir_row, text="📁 Browse",
@@ -292,8 +309,10 @@ class LinguaTaxiApp(tk.Tk):
                   style="Section.TLabel").pack(anchor="w")
         self.mic_var = tk.StringVar(value="System Default")
         self.mic_combo = ttk.Combobox(settings_frame, textvariable=self.mic_var,
-                                       state="readonly", font=("Segoe UI", 9))
+                                       state="readonly", font=("Segoe UI", 10))
         self.mic_combo.pack(fill="x", pady=(2, 8))
+        self.mic_combo.bind("<<ComboboxSelected>>", self._on_mic_changed)
+        self.mic_combo.bind("<ButtonPress-1>", self._on_mic_dropdown_open)
         self._refresh_mics()
 
         # Backend
@@ -308,9 +327,18 @@ class LinguaTaxiApp(tk.Tk):
         if IS_MAC:
             backend_values.append("mlx (Apple Silicon)")
         backend_combo = ttk.Combobox(settings_frame, textvariable=self.backend_var,
-                                      state="readonly", font=("Segoe UI", 9),
+                                      state="readonly", font=("Segoe UI", 10),
                                       values=backend_values)
-        backend_combo.pack(fill="x", pady=(2, 0))
+        backend_combo.pack(fill="x", pady=(2, 8))
+
+        ttk.Button(settings_frame, text="⬇  Download Language-Tuned Models",
+                   command=self._show_tuned_models_dialog).pack(fill="x", pady=(0, 4))
+
+        ttk.Button(settings_frame, text="⬇  Download Offline Translation Models",
+                   command=self._show_offline_translate_dialog).pack(fill="x", pady=(0, 4))
+
+        ttk.Button(settings_frame, text="🔧  Manage Installed Models",
+                   command=self._show_model_manager_dialog).pack(fill="x", pady=(0, 0))
 
         # ── Log Area ──
         log_frame = ttk.LabelFrame(main, text="  Server Log  ", padding=(8, 6))
@@ -318,7 +346,7 @@ class LinguaTaxiApp(tk.Tk):
 
         self.log_text = tk.Text(log_frame, height=8, wrap="word",
                                  bg="#0a0a1a", fg="#7fdbca", insertbackground="#7fdbca",
-                                 font=("Consolas" if IS_WIN else "Menlo", 9),
+                                 font=("Consolas" if IS_WIN else "Menlo", 10),
                                  relief="flat", padx=8, pady=6,
                                  state="disabled")
         self.log_text.pack(fill="both", expand=True)
@@ -356,26 +384,59 @@ class LinguaTaxiApp(tk.Tk):
 
     # ── Microphone Management ──
 
-    def _refresh_mics(self):
+    def _refresh_mics(self, preserve_selection=False):
+        prev_idx = self._get_selected_mic_index() if preserve_selection else None
         mics = list_mics()
         self._mic_devices = mics
         names = ["System Default"] + [f"[{i}] {n}" for i, n in mics]
         self.mic_combo["values"] = names
 
-        # Restore saved selection
-        saved_idx = self.settings.get("mic_index")
-        if saved_idx is not None:
+        # Restore selection: either previous (on refresh) or saved (on init)
+        target_idx = prev_idx if preserve_selection else self.settings.get("mic_index")
+        if target_idx is not None:
             for j, (i, n) in enumerate(mics):
-                if i == saved_idx:
+                if i == target_idx:
                     self.mic_combo.current(j + 1)
                     return
         self.mic_combo.current(0)
+
+    def _on_mic_dropdown_open(self, event=None):
+        """Re-query audio devices when the dropdown is clicked."""
+        self._refresh_mics(preserve_selection=True)
 
     def _get_selected_mic_index(self):
         sel = self.mic_combo.current()
         if sel <= 0:
             return None  # System default
         return self._mic_devices[sel - 1][0]
+
+    def _on_mic_changed(self, event=None):
+        """When mic dropdown changes, push to running server via API."""
+        if not self._server_running or not self._server_ready:
+            return  # Will be applied at next server start via CLI args
+        mic_idx = self._get_selected_mic_index()
+        port = self.settings.get("operator_port", 3001)
+
+        def _send():
+            import urllib.request, urllib.parse
+            try:
+                data = urllib.parse.urlencode(
+                    {"mic_index": mic_idx if mic_idx is not None else ""})
+                req = urllib.request.Request(
+                    f"http://localhost:{port}/api/set-mic",
+                    data=data.encode(), method="POST")
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    import json as _json
+                    body = _json.loads(resp.read())
+                    if body.get("changed"):
+                        name = body.get("mic_name", "default")
+                        self.log_queue.put(("output",
+                            f"  Microphone switched to: {name}"))
+            except Exception as e:
+                self.log_queue.put(("output",
+                    f"  Mic change failed (will apply on restart): {e}"))
+
+        threading.Thread(target=_send, daemon=True).start()
 
     # ── Server Management ──
 
@@ -510,6 +571,934 @@ class LinguaTaxiApp(tk.Tk):
         poll()
         self.wait_window(dlg)
 
+    # ── Tuned Models Dialog ──
+
+    def _get_tuned_model_info(self):
+        """Get tuned model info by running tuned_models.py --list."""
+        models_dir = APP_DIR / "models"
+        try:
+            python = self._find_python()
+            result = subprocess.run(
+                [python, str(APP_DIR / "tuned_models.py"), "--list",
+                 "--models-dir", str(models_dir)],
+                capture_output=True, text=True, timeout=15,
+                cwd=str(APP_DIR))
+            if result.returncode == 0:
+                return json.loads(result.stdout.strip())
+        except Exception:
+            pass
+        return {}
+
+    def _show_tuned_models_dialog(self):
+        """Show dialog for downloading language-tuned Whisper models."""
+        # Check tuned_models.py exists
+        if not (APP_DIR / "tuned_models.py").exists():
+            messagebox.showinfo("Not Available",
+                "tuned_models.py not found.\n"
+                "This feature requires the Full edition.",
+                parent=self)
+            return
+
+        dlg = tk.Toplevel(self)
+        dlg.title("Download Language-Tuned Models")
+        dlg.geometry("520x460")
+        dlg.resizable(False, False)
+        dlg.configure(bg=self.BG)
+        dlg.transient(self)
+        dlg.grab_set()
+
+        # Center on parent
+        dlg.update_idletasks()
+        px = self.winfo_x() + (self.winfo_width() - 520) // 2
+        py = self.winfo_y() + (self.winfo_height() - 460) // 2
+        dlg.geometry(f"+{px}+{py}")
+
+        f = ttk.Frame(dlg, padding=20)
+        f.pack(fill="both", expand=True)
+
+        ttk.Label(f, text="Download Language-Tuned Models",
+                  font=("Segoe UI", 13, "bold"),
+                  foreground=self.ACCENT, background=self.BG).pack(pady=(0, 4))
+
+        ttk.Label(f, text="Fine-tuned Whisper models with better accuracy for\n"
+                  "specific languages. Used automatically when you select\n"
+                  "the matching input language in the operator panel.",
+                  style="Subtitle.TLabel", justify="center",
+                  wraplength=460).pack(pady=(0, 12))
+
+        # Get current status
+        model_info = self._get_tuned_model_info()
+
+        # Fallback if tuned_models.py can't be reached
+        if not model_info:
+            model_info = {
+                "ES": {"name": "Spanish (Turbo)", "size_gb": 1.6, "available": False},
+                "FR": {"name": "French", "size_gb": 3.1, "available": False},
+                "DE": {"name": "German", "size_gb": 3.1, "available": False},
+                "AR": {"name": "Arabic", "size_gb": 3.1, "available": False},
+                "JA": {"name": "Japanese", "size_gb": 1.5, "available": False},
+                "ZH": {"name": "Chinese", "size_gb": 3.1, "available": False},
+            }
+
+        # Checkboxes
+        cb_frame = ttk.Frame(f)
+        cb_frame.pack(fill="x", pady=(0, 12))
+
+        check_vars = {}
+        cb_widgets = {}
+        for lang, info in model_info.items():
+            var = tk.BooleanVar(value=False)
+            check_vars[lang] = var
+
+            name = info.get("name", lang)
+            size = info.get("size_gb", "?")
+            avail = info.get("available", False)
+
+            if avail:
+                # Clear "installed" indicator instead of greyed-out checkbox
+                row = ttk.Frame(cb_frame)
+                row.pack(anchor="w", pady=2, fill="x")
+                tk.Label(row, text=" ✓ ", fg="#66BB6A", bg=self.BG,
+                         font=("Segoe UI", 10, "bold")).pack(side="left")
+                tk.Label(row, text=f"{name} — ~{size} GB  ",
+                         fg=self.FG, bg=self.BG,
+                         font=("Segoe UI", 9)).pack(side="left")
+                tk.Label(row, text="Installed", fg="#66BB6A", bg=self.BG,
+                         font=("Segoe UI", 9, "bold")).pack(side="left")
+                cb_widgets[lang] = None
+            else:
+                text = f"{name} — ~{size} GB"
+                cb = ttk.Checkbutton(cb_frame, text=text, variable=var)
+                cb.pack(anchor="w", pady=2)
+                cb_widgets[lang] = cb
+
+        # Buttons
+        btn_frame = ttk.Frame(f)
+        btn_frame.pack(fill="x", pady=(0, 8))
+
+        dl_btn = ttk.Button(btn_frame, text="Download Selected",
+                            style="Start.TButton",
+                            command=lambda: _start_download())
+        dl_btn.pack(side="left", padx=(0, 8))
+
+        close_btn = ttk.Button(btn_frame, text="Close",
+                               command=dlg.destroy)
+        close_btn.pack(side="right")
+
+        # Progress area
+        prog_frame = ttk.Frame(f)
+        prog_frame.pack(fill="x", pady=(8, 0))
+
+        progress_bar = ttk.Progressbar(prog_frame, mode="determinate", length=460)
+        progress_bar.pack_forget()
+
+        status_var = tk.StringVar(value="Select languages and click Download.")
+        status_label = ttk.Label(prog_frame, textvariable=status_var,
+                                 style="Subtitle.TLabel", wraplength=460)
+        status_label.pack(fill="x")
+
+        hint_label = ttk.Label(prog_frame,
+                               text="Requires transformers and torch packages in the venv.\n"
+                               "Included in Full installer. Each model takes 5-30 minutes.",
+                               style="Subtitle.TLabel", wraplength=460)
+        hint_label.pack(fill="x", pady=(8, 0))
+
+        dl_queue = queue.Queue()
+
+        def _start_download():
+            selected = [lang for lang, var in check_vars.items()
+                        if var.get() and not model_info.get(lang, {}).get("available")]
+            if not selected:
+                messagebox.showinfo("No Selection",
+                    "Please select at least one language to download.",
+                    parent=dlg)
+                return
+
+            dl_btn.configure(state="disabled")
+            close_btn.configure(state="disabled")
+            for cb in cb_widgets.values():
+                if cb:
+                    cb.configure(state="disabled")
+            progress_bar.pack(fill="x", pady=(0, 4))
+            progress_bar["value"] = 0
+            status_var.set("Starting download...")
+
+            python = self._find_python()
+            models_dir = APP_DIR / "models"
+            cmd = [python, str(APP_DIR / "tuned_models.py"),
+                   "--download"] + selected + [
+                   "--models-dir", str(models_dir)]
+
+            kwargs = {}
+            if IS_WIN:
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                universal_newlines=True, cwd=str(APP_DIR),
+                env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                **kwargs)
+
+            total = len(selected)
+
+            def _read_output():
+                completed = 0
+                succeeded = 0
+                failed = 0
+                errors = []
+                last_output = []
+                for line in iter(proc.stdout.readline, ""):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if line.startswith("PROGRESS:"):
+                        parts = line.split(":", 4)
+                        if len(parts) >= 5:
+                            lang_code = parts[1]
+                            pct_str = parts[3]
+                            msg = parts[4]
+                            try:
+                                pct = int(pct_str)
+                                overall = int((completed * 100 + pct) / total)
+                                dl_queue.put(("progress", overall,
+                                              f"[{lang_code}] {msg}"))
+                            except ValueError:
+                                dl_queue.put(("status", 0, msg))
+                    elif line.startswith("DONE:"):
+                        parts = line.split(":", 3)
+                        if len(parts) >= 3:
+                            completed += 1
+                            lang_code = parts[1]
+                            ok = parts[2] == "ok"
+                            msg = parts[3] if len(parts) > 3 else ""
+                            if ok:
+                                succeeded += 1
+                                dl_queue.put(("done_ok", lang_code, msg))
+                            else:
+                                failed += 1
+                                errors.append(msg)
+                                dl_queue.put(("done_err", lang_code, msg))
+                    else:
+                        last_output.append(line)
+                        if len(last_output) > 10:
+                            last_output.pop(0)
+                proc.wait()
+                if completed == 0 and proc.returncode != 0:
+                    err_msg = last_output[-1] if last_output else f"Process exited with code {proc.returncode}"
+                    dl_queue.put(("finished_err", 0, f"Download failed: {err_msg}"))
+                elif failed > 0 and succeeded == 0:
+                    summary = f"Download failed: {errors[0]}" if errors else "Download failed."
+                    dl_queue.put(("finished_err", 0, summary))
+                elif failed > 0:
+                    dl_queue.put(("finished_partial", succeeded,
+                                  f"{succeeded} downloaded, {failed} failed"))
+                else:
+                    dl_queue.put(("finished", 0, ""))
+
+            t = threading.Thread(target=_read_output, daemon=True)
+            t.start()
+
+            def _poll():
+                try:
+                    while True:
+                        msg_type, val, msg = dl_queue.get_nowait()
+                        if msg_type == "progress":
+                            progress_bar["value"] = val
+                            status_var.set(msg)
+                        elif msg_type == "status":
+                            status_var.set(msg)
+                        elif msg_type == "done_ok":
+                            # Mark as downloaded
+                            lang_code = val
+                            if lang_code in model_info:
+                                model_info[lang_code]["available"] = True
+                        elif msg_type == "done_err":
+                            lang_code = val
+                            status_var.set(f"[{lang_code}] Error: {msg}")
+                        elif msg_type in ("finished", "finished_err", "finished_partial"):
+                            if msg_type == "finished":
+                                progress_bar["value"] = 100
+                                status_var.set("Download complete!")
+                            elif msg_type == "finished_err":
+                                progress_bar["value"] = 0
+                                status_var.set(msg)
+                            else:
+                                progress_bar["value"] = 100
+                                status_var.set(msg)
+                            dl_btn.configure(state="normal")
+                            close_btn.configure(state="normal")
+                            # Update checkboxes
+                            for lang, info in model_info.items():
+                                cb = cb_widgets.get(lang)
+                                if cb and info.get("available"):
+                                    cb.configure(state="disabled")
+                                    check_vars[lang].set(False)
+                                elif cb:
+                                    cb.configure(state="normal")
+                            return
+                except queue.Empty:
+                    pass
+                dlg.after(200, _poll)
+
+            _poll()
+
+    # ── Offline Translation Models Dialog ──
+
+    def _get_offline_translate_info(self):
+        """Get offline translation model info by running offline_translate.py --list."""
+        models_dir = APP_DIR / "models"
+        try:
+            python = self._find_python()
+            result = subprocess.run(
+                [python, str(APP_DIR / "offline_translate.py"), "--list",
+                 "--models-dir", str(models_dir)],
+                capture_output=True, text=True, timeout=15,
+                cwd=str(APP_DIR))
+            if result.returncode == 0:
+                return json.loads(result.stdout.strip())
+        except Exception:
+            pass
+        return {}
+
+    def _show_offline_translate_dialog(self):
+        """Show dialog for downloading offline translation models."""
+        if not (APP_DIR / "offline_translate.py").exists():
+            messagebox.showinfo("Not Available",
+                "offline_translate.py not found.",
+                parent=self)
+            return
+
+        dlg = tk.Toplevel(self)
+        dlg.title("Download Offline Translation Models")
+        dlg.geometry("560x560")
+        dlg.resizable(False, False)
+        dlg.configure(bg=self.BG)
+        dlg.transient(self)
+        dlg.grab_set()
+
+        dlg.update_idletasks()
+        px = self.winfo_x() + (self.winfo_width() - 560) // 2
+        py = self.winfo_y() + (self.winfo_height() - 560) // 2
+        dlg.geometry(f"+{px}+{py}")
+
+        f = ttk.Frame(dlg, padding=20)
+        f.pack(fill="both", expand=True)
+
+        ttk.Label(f, text="Download Offline Translation Models",
+                  font=("Segoe UI", 13, "bold"),
+                  foreground=self.ACCENT, background=self.BG).pack(pady=(0, 4))
+
+        ttk.Label(f, text="Translate without internet or DeepL credits.\n"
+                  "OPUS-MT: fast, best for European languages (~310 MB download each)\n"
+                  "M2M-100: covers 100 languages (~4.8 GB download, slower)",
+                  style="Subtitle.TLabel", justify="center",
+                  wraplength=500).pack(pady=(0, 12))
+
+        model_info = self._get_offline_translate_info()
+
+        opus_models = model_info.get("opus", {})
+        m2m_info = model_info.get("m2m100", {})
+
+        # Fallback data if script unavailable
+        if not opus_models:
+            opus_models = {
+                "ES": {"name": "Spanish", "size_mb": 310, "available": False},
+                "FR": {"name": "French", "size_mb": 310, "available": False},
+                "DE": {"name": "German", "size_mb": 310, "available": False},
+                "IT": {"name": "Italian", "size_mb": 310, "available": False},
+                "RU": {"name": "Russian", "size_mb": 310, "available": False},
+                "PL": {"name": "Polish", "size_mb": 310, "available": False},
+            }
+        if not m2m_info:
+            m2m_info = {"name": "M2M-100 Multilingual", "size_mb": 4800, "available": False}
+
+        # OPUS-MT section
+        ttk.Label(f, text="OPUS-MT (per-language, fast):",
+                  style="Section.TLabel").pack(anchor="w", pady=(4, 2))
+
+        opus_frame = ttk.Frame(f)
+        opus_frame.pack(fill="x", pady=(0, 8))
+
+        opus_vars = {}
+        opus_cbs = {}
+        # Show a subset of popular languages
+        popular = ["ES", "FR", "DE", "IT", "RU", "PL", "NL", "SV", "TR", "UK"]
+        for lang in popular:
+            info = opus_models.get(lang)
+            if not info:
+                continue
+            var = tk.BooleanVar(value=False)
+            opus_vars[lang] = var
+            name = info.get("name", lang)
+            size = info.get("size_mb", 310)
+            avail = info.get("available", False)
+
+            if avail:
+                row = ttk.Frame(opus_frame)
+                row.pack(anchor="w", pady=1, fill="x")
+                tk.Label(row, text=" ✓ ", fg="#66BB6A", bg=self.BG,
+                         font=("Segoe UI", 9, "bold")).pack(side="left")
+                tk.Label(row, text=f"{name} ({lang}) — ~{size} MB download  ",
+                         fg=self.FG, bg=self.BG,
+                         font=("Segoe UI", 9)).pack(side="left")
+                tk.Label(row, text="Installed", fg="#66BB6A", bg=self.BG,
+                         font=("Segoe UI", 9, "bold")).pack(side="left")
+                opus_cbs[lang] = None
+            else:
+                text = f"{name} ({lang}) — ~{size} MB download"
+                cb = ttk.Checkbutton(opus_frame, text=text, variable=var)
+                cb.pack(anchor="w", pady=1)
+                opus_cbs[lang] = cb
+
+        # M2M-100 section
+        ttk.Label(f, text="M2M-100 (all languages, larger):",
+                  style="Section.TLabel").pack(anchor="w", pady=(8, 2))
+
+        m2m_frame = ttk.Frame(f)
+        m2m_frame.pack(fill="x", pady=(0, 8))
+
+        m2m_var = tk.BooleanVar(value=False)
+        m2m_name = m2m_info.get("name", "M2M-100")
+        m2m_size = m2m_info.get("size_mb", 4800)
+        m2m_size_str = f"{m2m_size / 1000:.1f} GB" if m2m_size >= 1000 else f"{m2m_size} MB"
+        m2m_avail = m2m_info.get("available", False)
+        m2m_cb = None
+        if m2m_avail:
+            row = ttk.Frame(m2m_frame)
+            row.pack(anchor="w", fill="x")
+            tk.Label(row, text=" ✓ ", fg="#66BB6A", bg=self.BG,
+                     font=("Segoe UI", 9, "bold")).pack(side="left")
+            tk.Label(row, text=f"{m2m_name} — ~{m2m_size_str}  ",
+                     fg=self.FG, bg=self.BG,
+                     font=("Segoe UI", 9)).pack(side="left")
+            tk.Label(row, text="Installed", fg="#66BB6A", bg=self.BG,
+                     font=("Segoe UI", 9, "bold")).pack(side="left")
+        else:
+            m2m_text = f"{m2m_name} — ~{m2m_size_str} download (covers Arabic, Japanese, Chinese, Korean, etc.)"
+            m2m_cb = ttk.Checkbutton(m2m_frame, text=m2m_text, variable=m2m_var)
+            m2m_cb.pack(anchor="w")
+
+        # Buttons
+        btn_frame = ttk.Frame(f)
+        btn_frame.pack(fill="x", pady=(8, 4))
+
+        dl_btn = ttk.Button(btn_frame, text="Download Selected",
+                            style="Start.TButton",
+                            command=lambda: _start_download())
+        dl_btn.pack(side="left", padx=(0, 8))
+
+        close_btn = ttk.Button(btn_frame, text="Close",
+                               command=dlg.destroy)
+        close_btn.pack(side="right")
+
+        # Progress
+        prog_frame = ttk.Frame(f)
+        prog_frame.pack(fill="x", pady=(8, 0))
+
+        progress_bar = ttk.Progressbar(prog_frame, mode="determinate", length=500)
+        progress_bar.pack_forget()
+
+        status_var = tk.StringVar(value="Select models and click Download.")
+        status_label = ttk.Label(prog_frame, textvariable=status_var,
+                                 style="Subtitle.TLabel", wraplength=500)
+        status_label.pack(fill="x")
+
+        ttk.Label(prog_frame,
+                  text="Requires transformers, torch, and ctranslate2.\n"
+                  "Included in Full installer. OPUS-MT: ~5 min each, M2M-100: ~30-60 min.",
+                  style="Subtitle.TLabel", wraplength=500).pack(fill="x", pady=(8, 0))
+
+        dl_queue = queue.Queue()
+
+        def _start_download():
+            # Collect selections
+            opus_selected = [lang for lang, var in opus_vars.items()
+                           if var.get() and not opus_models.get(lang, {}).get("available")]
+            want_m2m = m2m_var.get() and not m2m_avail
+
+            if not opus_selected and not want_m2m:
+                messagebox.showinfo("No Selection",
+                    "Please select at least one model to download.",
+                    parent=dlg)
+                return
+
+            dl_btn.configure(state="disabled")
+            close_btn.configure(state="disabled")
+            for cb in opus_cbs.values():
+                if cb:
+                    cb.configure(state="disabled")
+            if m2m_cb:
+                m2m_cb.configure(state="disabled")
+            progress_bar.pack(fill="x", pady=(0, 4))
+            progress_bar["value"] = 0
+            status_var.set("Starting download...")
+
+            python = self._find_python()
+            models_dir = APP_DIR / "models"
+
+            # Build command — download OPUS models first, then M2M
+            cmds = []
+            if opus_selected:
+                cmds.append([python, str(APP_DIR / "offline_translate.py"),
+                            "--download-opus"] + opus_selected +
+                           ["--models-dir", str(models_dir)])
+            if want_m2m:
+                cmds.append([python, str(APP_DIR / "offline_translate.py"),
+                            "--download-m2m",
+                            "--models-dir", str(models_dir)])
+
+            total_steps = len(opus_selected) + (1 if want_m2m else 0)
+
+            kwargs = {}
+            if IS_WIN:
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+            def _run_cmds():
+                completed = 0
+                succeeded = 0
+                failed = 0
+                errors = []
+                last_output = []  # Capture non-PROGRESS/DONE output for diagnostics
+                for cmd in cmds:
+                    try:
+                        proc = subprocess.Popen(
+                            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            universal_newlines=True, cwd=str(APP_DIR),
+                            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                            **kwargs)
+                    except Exception as e:
+                        failed += total_steps
+                        errors.append(f"Failed to start: {e}")
+                        dl_queue.put(("done_err", "process", str(e)))
+                        continue
+
+                    for line in iter(proc.stdout.readline, ""):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        if line.startswith("PROGRESS:"):
+                            parts = line.split(":", 4)
+                            if len(parts) >= 5:
+                                pkey = parts[1]
+                                msg = parts[4]
+                                try:
+                                    pct = int(parts[3])
+                                    overall = int((completed * 100 + pct) / total_steps)
+                                    dl_queue.put(("progress", overall, f"[{pkey}] {msg}"))
+                                except ValueError:
+                                    dl_queue.put(("status", 0, msg))
+                        elif line.startswith("DONE:"):
+                            parts = line.split(":", 3)
+                            if len(parts) >= 3:
+                                completed += 1
+                                dkey = parts[1]
+                                ok = parts[2] == "ok"
+                                msg = parts[3] if len(parts) > 3 else ""
+                                if ok:
+                                    succeeded += 1
+                                    dl_queue.put(("done_ok", dkey, msg))
+                                else:
+                                    failed += 1
+                                    errors.append(msg)
+                                    dl_queue.put(("done_err", dkey, msg))
+                        else:
+                            last_output.append(line)
+                            if len(last_output) > 10:
+                                last_output.pop(0)
+                    proc.wait()
+
+                    # Detect subprocess crash (non-zero exit with no DONE lines)
+                    if proc.returncode != 0 and completed == 0:
+                        failed += 1
+                        err_detail = last_output[-1] if last_output else f"Process exited with code {proc.returncode}"
+                        errors.append(err_detail)
+                        dl_queue.put(("done_err", "process", err_detail))
+
+                if completed == 0 and failed == 0:
+                    # No DONE lines at all — subprocess likely crashed silently
+                    err_msg = last_output[-1] if last_output else "Download process produced no output"
+                    dl_queue.put(("finished_err", 0, f"Download failed: {err_msg}"))
+                elif failed > 0 and succeeded == 0:
+                    summary = f"Download failed: {errors[0]}" if errors else "Download failed."
+                    dl_queue.put(("finished_err", 0, summary))
+                elif failed > 0:
+                    dl_queue.put(("finished_partial", succeeded,
+                                  f"{succeeded} downloaded, {failed} failed"))
+                else:
+                    dl_queue.put(("finished", 0, ""))
+
+            t = threading.Thread(target=_run_cmds, daemon=True)
+            t.start()
+
+            def _poll():
+                try:
+                    while True:
+                        msg_type, val, msg = dl_queue.get_nowait()
+                        if msg_type == "progress":
+                            progress_bar["value"] = val
+                            status_var.set(msg)
+                        elif msg_type == "status":
+                            status_var.set(msg)
+                        elif msg_type == "done_ok":
+                            pass  # Individual model done
+                        elif msg_type == "done_err":
+                            status_var.set(f"[{val}] Error: {msg}")
+                        elif msg_type in ("finished", "finished_err", "finished_partial"):
+                            if msg_type == "finished":
+                                progress_bar["value"] = 100
+                                status_var.set("Download complete!")
+                            elif msg_type == "finished_err":
+                                progress_bar["value"] = 0
+                                status_var.set(msg)
+                            else:
+                                progress_bar["value"] = 100
+                                status_var.set(msg)
+                            dl_btn.configure(state="normal")
+                            close_btn.configure(state="normal")
+                            # Refresh status
+                            new_info = self._get_offline_translate_info()
+                            new_opus = new_info.get("opus", {})
+                            new_m2m = new_info.get("m2m100", {})
+                            for lang, cb in opus_cbs.items():
+                                if not cb:
+                                    continue
+                                if new_opus.get(lang, {}).get("available"):
+                                    cb.configure(state="disabled")
+                                    opus_vars[lang].set(False)
+                                else:
+                                    cb.configure(state="normal")
+                            if m2m_cb:
+                                if new_m2m.get("available"):
+                                    m2m_cb.configure(state="disabled")
+                                    m2m_var.set(False)
+                                else:
+                                    m2m_cb.configure(state="normal")
+                            return
+                except queue.Empty:
+                    pass
+                dlg.after(200, _poll)
+
+            _poll()
+
+    # ── Model Manager Dialog ──
+
+    def _show_model_manager_dialog(self):
+        """Show dialog to view, update, and delete installed models."""
+        dlg = tk.Toplevel(self)
+        dlg.title("Manage Installed Models")
+        dlg.geometry("680x600")
+        dlg.resizable(False, True)
+        dlg.configure(bg=self.BG)
+        dlg.transient(self)
+        dlg.grab_set()
+
+        dlg.update_idletasks()
+        px = self.winfo_x() + (self.winfo_width() - 680) // 2
+        py = self.winfo_y() + (self.winfo_height() - 600) // 2
+        dlg.geometry(f"+{px}+{py}")
+
+        f = ttk.Frame(dlg, padding=16)
+        f.pack(fill="both", expand=True)
+
+        ttk.Label(f, text="Manage Installed Models",
+                  font=("Segoe UI", 13, "bold"),
+                  foreground=self.ACCENT, background=self.BG).pack(pady=(0, 4))
+
+        status_var = tk.StringVar(value="Loading model information...")
+        status_lbl = ttk.Label(f, textvariable=status_var,
+                               style="Subtitle.TLabel", wraplength=560)
+        status_lbl.pack(fill="x", pady=(0, 8))
+
+        # Scrollable list
+        canvas = tk.Canvas(f, bg=self.BG, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(f, orient="vertical", command=canvas.yview)
+        list_frame = ttk.Frame(canvas)
+
+        list_frame.bind("<Configure>",
+                        lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=list_frame, anchor="nw", width=640)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Mousewheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        dlg.bind("<Destroy>", lambda e: canvas.unbind_all("<MouseWheel>") if e.widget == dlg else None)
+
+        # Button frame
+        btn_frame = ttk.Frame(f)
+        btn_frame.pack(fill="x", pady=(8, 0))
+
+        total_var = tk.StringVar(value="")
+        ttk.Label(btn_frame, textvariable=total_var,
+                  style="Subtitle.TLabel").pack(side="left")
+
+        ttk.Button(btn_frame, text="Refresh",
+                   command=lambda: _populate()).pack(side="right", padx=(8, 0))
+        ttk.Button(btn_frame, text="Close",
+                   command=dlg.destroy).pack(side="right")
+
+        python = self._find_python()
+        models_dir = APP_DIR / "models"
+
+        def _fmt_size(size_bytes):
+            """Format byte count as human-readable string."""
+            if size_bytes <= 0:
+                return "—"
+            if size_bytes >= 1024 ** 3:
+                return f"{size_bytes / (1024**3):.1f} GB"
+            return f"{size_bytes / (1024**2):.0f} MB"
+
+        def _get_speech_models():
+            """Detect installed speech recognition models."""
+            results = []
+            # Whisper model
+            whisper_dir = models_dir / "faster-whisper-large-v3-turbo"
+            if (whisper_dir / "model.bin").exists():
+                size = sum(f.stat().st_size for f in whisper_dir.rglob("*") if f.is_file())
+                results.append({"name": "Whisper large-v3-turbo (GPU)", "path": whisper_dir,
+                                "size": size, "type": "speech", "key": "whisper"})
+            # Vosk models
+            for vdir in sorted(models_dir.glob("vosk-model-*")):
+                if vdir.is_dir():
+                    size = sum(f.stat().st_size for f in vdir.rglob("*") if f.is_file())
+                    results.append({"name": f"Vosk {vdir.name} (CPU)", "path": vdir,
+                                    "size": size, "type": "speech", "key": vdir.name})
+            return results
+
+        def _get_tuned_models():
+            """Get tuned model status."""
+            try:
+                result = subprocess.run(
+                    [python, str(APP_DIR / "tuned_models.py"), "--list",
+                     "--models-dir", str(models_dir)],
+                    capture_output=True, text=True, timeout=15, cwd=str(APP_DIR))
+                if result.returncode == 0:
+                    return json.loads(result.stdout.strip())
+            except Exception:
+                pass
+            return {}
+
+        def _get_translate_models():
+            """Get offline translation model status."""
+            try:
+                result = subprocess.run(
+                    [python, str(APP_DIR / "offline_translate.py"), "--list",
+                     "--models-dir", str(models_dir)],
+                    capture_output=True, text=True, timeout=15, cwd=str(APP_DIR))
+                if result.returncode == 0:
+                    return json.loads(result.stdout.strip())
+            except Exception:
+                pass
+            return {}
+
+        def _delete_model(model_type, key, name):
+            """Delete a model and refresh the list."""
+            if not messagebox.askyesno("Delete Model",
+                    f"Delete {name}?\n\nThis cannot be undone. "
+                    f"You'll need to re-download to use it again.",
+                    parent=dlg):
+                return
+
+            kwargs = {}
+            if IS_WIN:
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+            try:
+                if model_type == "speech":
+                    # Direct delete for speech models
+                    path = models_dir / key
+                    if path.exists():
+                        shutil.rmtree(path)
+                    status_var.set(f"Deleted {name}")
+                elif model_type == "tuned":
+                    subprocess.run(
+                        [python, str(APP_DIR / "tuned_models.py"),
+                         "--delete", key, "--models-dir", str(models_dir)],
+                        capture_output=True, timeout=30, cwd=str(APP_DIR), **kwargs)
+                    status_var.set(f"Deleted {name}")
+                elif model_type == "opus":
+                    subprocess.run(
+                        [python, str(APP_DIR / "offline_translate.py"),
+                         "--delete-opus", key, "--models-dir", str(models_dir)],
+                        capture_output=True, timeout=30, cwd=str(APP_DIR), **kwargs)
+                    status_var.set(f"Deleted {name}")
+                elif model_type == "m2m":
+                    subprocess.run(
+                        [python, str(APP_DIR / "offline_translate.py"),
+                         "--delete-m2m", "--models-dir", str(models_dir)],
+                        capture_output=True, timeout=30, cwd=str(APP_DIR), **kwargs)
+                    status_var.set(f"Deleted {name}")
+            except Exception as e:
+                status_var.set(f"Delete failed: {e}")
+                return
+
+            _populate()
+
+        def _add_section_header(parent, text):
+            """Add a section header label."""
+            lbl = tk.Label(parent, text=text, fg=self.ACCENT, bg=self.BG,
+                           font=("Segoe UI", 11, "bold"), anchor="w")
+            lbl.pack(fill="x", pady=(8, 2))
+            sep = ttk.Separator(parent, orient="horizontal")
+            sep.pack(fill="x", pady=(0, 4))
+
+        def _download_model(model_type, key, name):
+            """Launch the appropriate download dialog for a model."""
+            dlg.grab_release()
+            if model_type == "tuned":
+                self._show_tuned_models_dialog()
+            elif model_type in ("opus", "m2m"):
+                self._show_offline_translate_dialog()
+            # Re-grab after download dialog closes
+            try:
+                dlg.grab_set()
+            except Exception:
+                pass
+            _populate()
+
+        def _add_model_row(parent, name, size_str, model_type, key, installed=True):
+            """Add a single model row with name, size, and action buttons."""
+            row = tk.Frame(parent, bg=self.BG)
+            row.pack(fill="x", pady=2, padx=4)
+
+            if installed:
+                indicator = tk.Label(row, text="●", fg="#66BB6A", bg=self.BG,
+                                     font=("Segoe UI", 9))
+            else:
+                indicator = tk.Label(row, text="○", fg="#666", bg=self.BG,
+                                     font=("Segoe UI", 9))
+            indicator.pack(side="left", padx=(0, 4))
+
+            name_lbl = tk.Label(row, text=name, fg=self.FG, bg=self.BG,
+                                font=("Segoe UI", 9), anchor="w")
+            name_lbl.pack(side="left", fill="x", expand=True)
+
+            size_lbl = tk.Label(row, text=size_str, fg="#999", bg=self.BG,
+                                font=("Segoe UI", 9))
+            size_lbl.pack(side="left", padx=(8, 8))
+
+            if installed:
+                # Use default args to capture current values (avoid lambda closure bug)
+                del_btn = tk.Button(row, text="  Delete  ", fg="#fff", bg="#c62828",
+                                    activeforeground="#fff", activebackground="#f44336",
+                                    font=("Segoe UI", 8, "bold"), relief="raised",
+                                    cursor="hand2", bd=1,
+                                    command=lambda mt=model_type, k=key, n=name:
+                                        _delete_model(mt, k, n))
+                del_btn.pack(side="right", padx=(4, 0))
+            else:
+                dl_btn = tk.Button(row, text=" Download ", fg="#fff", bg="#2E7D32",
+                                   activeforeground="#fff", activebackground="#4CAF50",
+                                   font=("Segoe UI", 8, "bold"), relief="raised",
+                                   cursor="hand2", bd=1,
+                                   command=lambda mt=model_type, k=key, n=name:
+                                       _download_model(mt, k, n))
+                dl_btn.pack(side="right", padx=(4, 0))
+
+        def _populate():
+            """Load and display all model info."""
+            # Clear existing
+            for widget in list_frame.winfo_children():
+                widget.destroy()
+
+            total_bytes = 0
+
+            # Speech models
+            _add_section_header(list_frame, "Speech Recognition Models")
+            speech = _get_speech_models()
+            if speech:
+                for m in speech:
+                    total_bytes += m["size"]
+                    _add_model_row(list_frame, m["name"], _fmt_size(m["size"]),
+                                   "speech", m["key"])
+            else:
+                tk.Label(list_frame, text="  No speech models installed",
+                         fg="#666", bg=self.BG, font=("Segoe UI", 9, "italic")).pack(anchor="w")
+
+            # Tuned models
+            _add_section_header(list_frame, "Language-Tuned Whisper Models")
+            tuned = _get_tuned_models()
+            has_tuned = False
+            for lang, info in sorted(tuned.items()):
+                name = f"{info.get('name', lang)} ({lang})"
+                avail = info.get("available", False)
+                if avail:
+                    has_tuned = True
+                    tuned_dir = models_dir / "tuned" / lang.lower()
+                    size = sum(f.stat().st_size for f in tuned_dir.rglob("*") if f.is_file()) if tuned_dir.exists() else 0
+                    total_bytes += size
+                    _add_model_row(list_frame, name, _fmt_size(size), "tuned", lang)
+                else:
+                    size_gb = info.get("size_gb", "?")
+                    _add_model_row(list_frame, name, f"~{size_gb} GB", "tuned", lang, installed=False)
+            if not tuned:
+                tk.Label(list_frame, text="  tuned_models.py not found (Full edition only)",
+                         fg="#666", bg=self.BG, font=("Segoe UI", 9, "italic")).pack(anchor="w")
+
+            # Translation models
+            _add_section_header(list_frame, "Offline Translation Models")
+            translate = _get_translate_models()
+            opus = translate.get("opus", {})
+            m2m = translate.get("m2m100", {})
+
+            # OPUS-MT
+            if opus:
+                for lang, info in sorted(opus.items()):
+                    name = f"OPUS-MT {info.get('name', lang)} ({lang})"
+                    avail = info.get("available", False)
+                    if avail:
+                        opus_dir = models_dir / "translate" / f"opus-mt-en-{lang.lower()}"
+                        size = sum(f.stat().st_size for f in opus_dir.rglob("*") if f.is_file()) if opus_dir.exists() else 0
+                        total_bytes += size
+                        _add_model_row(list_frame, name, _fmt_size(size), "opus", lang)
+                    else:
+                        size_mb = info.get("size_mb", 310)
+                        _add_model_row(list_frame, name, f"~{size_mb} MB", "opus", lang, installed=False)
+
+            # M2M-100
+            if m2m:
+                m2m_name = m2m.get("name", "M2M-100")
+                m2m_avail = m2m.get("available", False)
+                if m2m_avail:
+                    m2m_dir = models_dir / "translate" / "m2m100-1.2b"
+                    size = sum(f.stat().st_size for f in m2m_dir.rglob("*") if f.is_file()) if m2m_dir.exists() else 0
+                    total_bytes += size
+                    _add_model_row(list_frame, m2m_name, _fmt_size(size), "m2m", "m2m100")
+                else:
+                    size_mb = m2m.get("size_mb", 4800)
+                    size_str = f"~{size_mb / 1000:.1f} GB" if size_mb >= 1000 else f"~{size_mb} MB"
+                    _add_model_row(list_frame, m2m_name, size_str, "m2m", "m2m100", installed=False)
+
+            if not translate:
+                tk.Label(list_frame, text="  offline_translate.py not found (Full edition only)",
+                         fg="#666", bg=self.BG, font=("Segoe UI", 9, "italic")).pack(anchor="w")
+
+            # Check for leftover HF cache
+            hf_cache = models_dir / "translate" / "_hf_cache"
+            if hf_cache.exists():
+                cache_size = sum(f.stat().st_size for f in hf_cache.rglob("*") if f.is_file())
+                if cache_size > 0:
+                    total_bytes += cache_size
+                    _add_section_header(list_frame, "Temporary Cache")
+                    _add_model_row(list_frame, "HuggingFace download cache",
+                                   _fmt_size(cache_size), "speech", "translate/_hf_cache")
+
+            total_var.set(f"Total disk usage: {_fmt_size(total_bytes)}")
+            status_var.set(f"Found {len(speech)} speech, "
+                          f"{sum(1 for i in tuned.values() if i.get('available'))} tuned, "
+                          f"{sum(1 for i in opus.values() if i.get('available'))} translation models")
+            canvas.yview_moveto(0)
+
+        # Run initial populate in a thread to avoid blocking UI
+        def _bg_populate():
+            dlg.after(100, _populate)
+
+        _bg_populate()
+
     def _find_python(self):
         """Find the Python executable for running scripts."""
         if IS_WIN:
@@ -565,11 +1554,15 @@ class LinguaTaxiApp(tk.Tk):
             )
 
             self._server_running = True
+            self._server_ready = False
             self._update_ui_state(running=True)
 
             # Start log reader thread
             t = threading.Thread(target=self._read_server_output, daemon=True)
             t.start()
+
+            # Start HTTP readiness check (backup for log detection)
+            threading.Thread(target=self._check_server_readiness, daemon=True).start()
 
         except FileNotFoundError:
             self._log_error("Python not found. Please install Python 3.10+ or reinstall LinguaTaxi.")
@@ -603,6 +1596,7 @@ class LinguaTaxiApp(tk.Tk):
                 pass
 
         self._server_running = False
+        self._server_ready = False
         self.server_proc = None
         self._update_ui_state(running=False)
         self._log_system("Server stopped.")
@@ -621,8 +1615,10 @@ class LinguaTaxiApp(tk.Tk):
                     # Detect backend info
                     if "Backend:" in line or "backend:" in line.lower():
                         self.log_queue.put(("backend", line))
-                    # Detect ready state
-                    if "Uvicorn running" in line or "Started" in line:
+                    # Detect ready state (server prints "Ctrl+C to stop"
+                    # right before starting uvicorn threads; uvicorn's own
+                    # "Uvicorn running" is suppressed at log_level=warning)
+                    if "Ctrl+C to stop" in line or "Uvicorn running" in line:
                         self.log_queue.put(("ready", True))
         except Exception:
             pass
@@ -654,12 +1650,15 @@ class LinguaTaxiApp(tk.Tk):
                         self.backend_label.configure(text=m.group(1).strip())
 
                 elif msg_type == "ready":
-                    self._draw_dot(self.GREEN)
-                    self.status_label.configure(text="Running", foreground=self.GREEN)
-                    self._log_system("Server is ready!")
+                    if not self._server_ready:
+                        self._server_ready = True
+                        self._draw_dot(self.GREEN)
+                        self.status_label.configure(text="Running", foreground=self.GREEN)
+                        self._log_system("Server is ready!")
 
                 elif msg_type == "stopped":
                     self._server_running = False
+                    self._server_ready = False
                     self.server_proc = None
                     self._update_ui_state(running=False)
                     self._log_system("Server process ended.")
@@ -694,23 +1693,77 @@ class LinguaTaxiApp(tk.Tk):
             self.status_label.configure(text="Stopped", foreground=self.FG2)
             self.backend_label.configure(text="")
 
+    # ── Server Readiness ──
+
+    def _check_server_readiness(self):
+        """Background HTTP check to confirm server is accepting connections."""
+        import urllib.request
+        port = self.settings.get("operator_port", 3001)
+        for _ in range(60):  # Up to 60 seconds
+            if not self._server_running or self._server_ready:
+                return
+            try:
+                urllib.request.urlopen(f"http://localhost:{port}", timeout=2)
+                self.log_queue.put(("ready", True))
+                return
+            except Exception:
+                time.sleep(1)
+
+    def _open_browser_when_ready(self, port):
+        """Open browser once the server is confirmed ready on the given port."""
+        import urllib.request
+
+        if not self._server_running:
+            messagebox.showwarning("Server Not Running",
+                "The server is not running.\nClick 'Start Server' first.",
+                parent=self)
+            return
+
+        url = f"http://localhost:{port}"
+
+        # Already confirmed ready — open immediately
+        if self._server_ready:
+            webbrowser.open(url)
+            return
+
+        # Server starting but not ready — notify user and wait in background
+        messagebox.showinfo("Server Starting",
+            "The server is starting. Your window will open upon server start.",
+            parent=self)
+
+        def _wait_and_open():
+            for _ in range(30):  # Up to 30 seconds
+                if not self._server_running:
+                    return
+                try:
+                    urllib.request.urlopen(url, timeout=2)
+                    self._server_ready = True
+                    self.log_queue.put(("ready", True))
+                    webbrowser.open(url)
+                    return
+                except Exception:
+                    time.sleep(1)
+            # Timeout — server never responded
+            self.after(0, lambda: messagebox.showwarning("Server Not Responding",
+                "The server does not seem to be responding.\n"
+                "Try stopping the server and starting it again.",
+                parent=self))
+
+        threading.Thread(target=_wait_and_open, daemon=True).start()
+
     # ── Browser Actions ──
 
     def _open_operator(self):
-        port = self.settings.get("operator_port", 3001)
-        webbrowser.open(f"http://localhost:{port}")
+        self._open_browser_when_ready(self.settings.get("operator_port", 3001))
 
     def _open_main(self):
-        port = self.settings.get("display_port", 3000)
-        webbrowser.open(f"http://localhost:{port}")
+        self._open_browser_when_ready(self.settings.get("display_port", 3000))
 
     def _open_extended(self):
-        port = self.settings.get("extended_port", 3002)
-        webbrowser.open(f"http://localhost:{port}")
+        self._open_browser_when_ready(self.settings.get("extended_port", 3002))
 
     def _open_dictation(self):
-        port = self.settings.get("dictation_port", 3005)
-        webbrowser.open(f"http://localhost:{port}")
+        self._open_browser_when_ready(self.settings.get("dictation_port", 3005))
 
     def _open_transcripts_dir(self):
         tdir = Path(self.tdir_var.get().strip())

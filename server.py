@@ -52,8 +52,10 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 import numpy as np, requests, sounddevice as sd, uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse
+import tuned_models
+import offline_translate
 
 # ── Paths ──
 BASE_DIR = Path(__file__).parent
@@ -172,7 +174,8 @@ config = load_config()
 def get_deepl_url(key):
     return "https://api-free.deepl.com/v2/translate" if key.strip().endswith(":fx") else "https://api.deepl.com/v2/translate"
 
-def translate_text(text, target_lang, source_lang=None):
+def _translate_deepl(text, target_lang, source_lang=None):
+    """Translate using DeepL API."""
     api_key = config.get("deepl_api_key", "")
     if not text.strip() or not api_key:
         return ""
@@ -189,8 +192,28 @@ def translate_text(text, target_lang, source_lang=None):
             return result["translations"][0]["text"]
         return ""
     except Exception as e:
-        log.error(f"Translation error: {e}")
+        log.error(f"DeepL translation error: {e}")
         return ""
+
+def translate_text(text, target_lang, source_lang=None, mode="deepl"):
+    """Translate text using DeepL or offline models.
+
+    Args:
+        mode: "deepl", "offline-auto", "offline-opus", or "offline-m2m"
+    """
+    if not text.strip():
+        return ""
+    if mode == "deepl":
+        return _translate_deepl(text, target_lang, source_lang)
+    # Offline translation
+    engine = "auto"
+    if mode == "offline-opus":
+        engine = "opus-mt"
+    elif mode == "offline-m2m":
+        engine = "m2m100"
+    src = source_lang or config.get("input_lang", "EN")
+    return offline_translate.translate_offline(text, src, target_lang,
+                                               str(MODELS_DIR), engine=engine)
 
 # ── Audio ──
 SAMPLE_RATE = 16000; CHANNELS = 1; DTYPE = "float32"; CHUNK_DURATION = 0.5
@@ -212,14 +235,21 @@ extended_clients = set()
 operator_clients = set()
 dictation_clients = set()
 shutdown_event = threading.Event()
+mic_restart_event = threading.Event()   # signal audio capture to restart
+current_mic_index = None                # active mic device index (None = default)
 silence_threshold = SILENCE_THRESHOLD
 translation_paused = True
 captioning_paused = True
+dictation_active = False
 save_transcripts = True
 _session_stamp = time.strftime("%Y%m%d_%H%M%S")
 current_speaker = ""
 _speaker_change_pending = None  # {"name": str, "time": float} or None
 _speaker_lock = threading.Lock()
+_line_id = 0               # monotonic counter for final lines
+_line_id_lock = threading.Lock()
+_recent_lines = []          # last N final lines: [{id, text, speaker, src_lang}]
+_RECENT_LINES_MAX = 50
 
 
 
@@ -291,8 +321,8 @@ def _buffer_audio_loop(transcribe_fn, loop):
         except queue.Empty:
             continue
 
-        # ── Skip processing when captioning is paused ──
-        if captioning_paused:
+        # ── Skip processing when captioning is paused (unless dictation is active) ──
+        if captioning_paused and not dictation_active:
             buf = np.empty((0,1), dtype=np.float32)
             is_speech = False; silence_start = None; seg_start = None; last_interim = 0
             continue
@@ -345,7 +375,13 @@ class WhisperBackend(SpeechBackend):
         self._model_name = model_name
         self._device = device
         self._compute_type = compute_type
-        self._model = WhisperModel(model_name, device=device, compute_type=compute_type)
+        # Check for bundled model first (e.g. models/faster-whisper-large-v3-turbo/)
+        local_path = MODELS_DIR / f"faster-whisper-{model_name}"
+        if local_path.exists() and (local_path / "model.bin").exists():
+            log.info(f"Using bundled Whisper model: {local_path}")
+            self._model = WhisperModel(str(local_path), device=device, compute_type=compute_type)
+        else:
+            self._model = WhisperModel(model_name, device=device, compute_type=compute_type)
 
     @property
     def name(self):
@@ -372,9 +408,17 @@ class VoskBackend(SpeechBackend):
         "large": {"url":"https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip",
                   "dir":"vosk-model-en-us-0.22","size":"~1.8 GB"},
     }
-    def __init__(self, model_size="large"):
+    def __init__(self, model_size="auto"):
         import vosk; vosk.SetLogLevel(-1)
-        info = self.MODELS.get(model_size, self.MODELS["large"])
+        if model_size == "auto":
+            # Use best available model
+            if (MODELS_DIR / self.MODELS["large"]["dir"]).exists():
+                model_size = "large"
+            elif (MODELS_DIR / self.MODELS["small"]["dir"]).exists():
+                model_size = "small"
+            else:
+                model_size = "small"  # default for download attempt
+        info = self.MODELS.get(model_size, self.MODELS["small"])
         mp = MODELS_DIR / info["dir"]
         if not mp.exists(): self._dl(info, mp)
         self._model = vosk.Model(str(mp)); self._name = info["dir"]
@@ -391,8 +435,17 @@ class VoskBackend(SpeechBackend):
             print("\n  Extracting...")
             with zipfile.ZipFile(str(zp),"r") as z: z.extractall(str(MODELS_DIR))
             zp.unlink(); print(f"  Model ready\n")
+        except PermissionError:
+            if zp.exists():
+                try: zp.unlink()
+                except Exception: pass
+            print(f"\n  Cannot write to models directory (permission denied).")
+            print(f"  Re-run the installer or use 'Download Tuned Languages' in the launcher.")
+            sys.exit(1)
         except Exception as e:
-            if zp.exists(): zp.unlink()
+            if zp.exists():
+                try: zp.unlink()
+                except Exception: pass
             print(f"\n  Download failed: {e}"); sys.exit(1)
 
     @property
@@ -409,8 +462,8 @@ class VoskBackend(SpeechBackend):
             except queue.Empty:
                 continue
 
-            # ── Skip processing when captioning is paused ──
-            if captioning_paused:
+            # ── Skip processing when captioning is paused (unless dictation is active) ──
+            if captioning_paused and not dictation_active:
                 if in_speech:
                     rec.FinalResult()  # reset recognizer state
                     last_partial = ""; in_speech = False
@@ -499,7 +552,13 @@ class MLXWhisperBackend(SpeechBackend):
 
 # ── Broadcasting ──
 def _bc(loop, msg):
-    asyncio.run_coroutine_threadsafe(broadcast_all(msg), loop)
+    """Broadcast to appropriate clients based on mode.
+    In dictation-only mode (captioning paused but dictation active),
+    only send to dictation clients."""
+    if captioning_paused and dictation_active:
+        asyncio.run_coroutine_threadsafe(broadcast_dictation(msg), loop)
+    else:
+        asyncio.run_coroutine_threadsafe(broadcast_all(msg), loop)
 
 async def broadcast_all(msg):
     data = json.dumps(msg)
@@ -509,6 +568,15 @@ async def broadcast_all(msg):
             try: await ws.send_text(data)
             except: dead.add(ws)
         cs.difference_update(dead)
+
+async def broadcast_dictation(msg):
+    """Broadcast only to dictation clients."""
+    data = json.dumps(msg)
+    dead = set()
+    for ws in dictation_clients:
+        try: await ws.send_text(data)
+        except: dead.add(ws)
+    dictation_clients.difference_update(dead)
 
 def _save_line(lang_code, text):
     """Append a timestamped line to the transcript file for this language."""
@@ -524,34 +592,69 @@ def _save_line(lang_code, text):
     except Exception as e:
         log.warning(f"Transcript save error: {e}")
 
+def _next_line_id():
+    global _line_id
+    with _line_id_lock:
+        _line_id += 1
+        return _line_id
+
+def _store_recent_line(lid, text, speaker, src_lang):
+    with _line_id_lock:
+        _recent_lines.append({"id": lid, "text": text, "speaker": speaker, "src_lang": src_lang})
+        while len(_recent_lines) > _RECENT_LINES_MAX:
+            _recent_lines.pop(0)
+
 def _broadcast_final(text, loop):
-    """Broadcast final source text with speaker, save transcript, trigger translations."""
+    """Broadcast final source text with speaker, save transcript, trigger translations.
+    In dictation-only mode, only sends to dictation clients (no translations/transcripts)."""
     speaker = current_speaker
-    _bc(loop, {"type":"final","text":text,"speaker":speaker})
+    lid = _next_line_id()
+    if captioning_paused and dictation_active:
+        # Dictation-only mode: just send final text to dictation clients
+        asyncio.run_coroutine_threadsafe(
+            broadcast_dictation({"type":"final","text":text,"speaker":speaker,"line_id":lid}), loop)
+        log.info(f"   DICTATION: {text}")
+        return
+    _bc(loop, {"type":"final","text":text,"speaker":speaker,"line_id":lid})
     prefix = f"{speaker}: " if speaker else ""
     log.info(f"   IN: {prefix}{text}")
     src = config.get("input_lang", "EN")
     _save_line(src, f"{prefix}{text}")
-    _translate_all(text, "final_translation", loop)
+    _store_recent_line(lid, text, speaker, src)
+    _translate_all(text, "final_translation", loop, line_id=lid)
 
-def _translate_all(text, msg_type, loop, max_slots=99):
+def _translate_all(text, msg_type, loop, max_slots=99, line_id=None, speaker_override=None):
     if translation_paused:
         return
+    if captioning_paused and dictation_active:
+        return  # Dictation-only mode: no translations
     translations = config.get("translations", [])
     for i, t in enumerate(translations):
         if i >= max_slots: break
         threading.Thread(target=_do_translate,
-            args=(text, t["lang"], i, msg_type, loop), daemon=True).start()
+            args=(text, t["lang"], i, msg_type, loop, line_id, speaker_override), daemon=True).start()
 
-def _do_translate(text, lang, slot, msg_type, loop):
-    translated = translate_text(text, lang)
+def _do_translate(text, lang, slot, msg_type, loop, line_id=None, speaker_override=None):
+    translations = config.get("translations", [])
+    mode = "deepl"
+    if slot < len(translations):
+        mode = translations[slot].get("mode", "deepl")
+    translated = translate_text(text, lang, mode=mode)
     if translated:
-        speaker = current_speaker
-        _bc(loop, {"type": msg_type, "translated": translated, "lang": lang, "slot": slot, "speaker": speaker})
+        speaker = speaker_override if speaker_override is not None else current_speaker
+        msg = {"type": msg_type, "translated": translated, "lang": lang, "slot": slot, "speaker": speaker}
+        if line_id is not None:
+            msg["line_id"] = line_id
+        _bc(loop, msg)
         if msg_type == "final_translation":
             prefix = f"{speaker}: " if speaker else ""
-            log.info(f"   [{slot}] {lang}: {prefix}{translated}")
+            engine = "offline" if mode.startswith("offline") else "DeepL"
+            log.info(f"   [{slot}] {lang} ({engine}): {prefix}{translated}")
             _save_line(lang, f"{prefix}{translated}")
+        elif msg_type == "correct_translation":
+            prefix = f"{speaker}: " if speaker else ""
+            log.info(f"   [{slot}] {lang} CORRECTED: {prefix}{translated}")
+            _save_line(lang, f"[corrected] {prefix}{translated}")
 
 
 # ── Audio Capture ──
@@ -560,14 +663,26 @@ def audio_callback(indata, frames, ti, status):
     audio_queue.put(indata.copy())
 
 def start_audio_capture(dev_idx=None):
+    global current_mic_index
+    current_mic_index = dev_idx
     bs = int(SAMPLE_RATE * CHUNK_DURATION)
-    try:
-        s = sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, dtype=DTYPE,
-                           blocksize=bs, device=dev_idx, callback=audio_callback)
-        s.start(); log.info(f"Audio capture started (device: {dev_idx or 'default'})")
-        while not shutdown_event.is_set(): shutdown_event.wait(0.5)
-        s.stop(); s.close()
-    except Exception as e: log.error(f"Audio capture error: {e}")
+    while not shutdown_event.is_set():
+        mic_restart_event.clear()
+        try:
+            s = sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, dtype=DTYPE,
+                               blocksize=bs, device=current_mic_index, callback=audio_callback)
+            s.start()
+            log.info(f"Audio capture started (device: {current_mic_index or 'default'})")
+            while not shutdown_event.is_set() and not mic_restart_event.is_set():
+                shutdown_event.wait(0.3)
+            s.stop(); s.close()
+            if mic_restart_event.is_set():
+                log.info(f"Switching microphone to device: {current_mic_index or 'default'}")
+                continue  # restart loop with new mic
+            break  # shutdown
+        except Exception as e:
+            log.error(f"Audio capture error: {e}")
+            break
 
 
 # ══════════════════════════════════════════════
@@ -677,20 +792,65 @@ async def o_uploads(fn: str):
 
 @operator_app.get("/api/config")
 async def o_config():
-    return JSONResponse({
-        **_style_config(),
-        "deepl_api_key": config.get("deepl_api_key",""),
-        "has_api_key": bool(config.get("deepl_api_key","")),
-        "backend": stt_backend.name if stt_backend else "loading...",
-        "translation_count": config.get("translation_count", 1),
-        "translations": config.get("translations", []),
-        "font_css": _font_css(config.get("font_family","atkinson")),
-        "source_langs": DEEPL_SOURCE_LANGS,
-        "target_langs": DEEPL_TARGET_LANGS,
-        "color_palette": COLOR_PALETTE,
-        "bg_options": BG_OPTIONS,
-        "font_options": FONT_OPTIONS,
-    })
+    try:
+        try:
+            tuned_info = tuned_models.get_all_status(MODELS_DIR)
+        except Exception:
+            tuned_info = {}
+        try:
+            is_whisper = isinstance(stt_backend, WhisperBackend) if stt_backend else False
+        except Exception:
+            is_whisper = False
+        active_tuned = ""
+        try:
+            if is_whisper and stt_backend and stt_backend._model_name.startswith("tuned-"):
+                active_tuned = stt_backend._model_name.replace("tuned-", "").upper()
+        except Exception:
+            pass
+
+        try:
+            offline_info = offline_translate.get_all_status(MODELS_DIR)
+        except Exception:
+            offline_info = {"opus": {}, "m2m100": {}}
+
+        return JSONResponse({
+            **_style_config(),
+            "deepl_api_key": config.get("deepl_api_key",""),
+            "has_api_key": bool(config.get("deepl_api_key","")),
+            "backend": stt_backend.name if stt_backend else "loading...",
+            "is_whisper": is_whisper,
+            "translation_count": config.get("translation_count", 1),
+            "translations": config.get("translations", []),
+            "font_css": _font_css(config.get("font_family","atkinson")),
+            "source_langs": DEEPL_SOURCE_LANGS,
+            "target_langs": DEEPL_TARGET_LANGS,
+            "color_palette": COLOR_PALETTE,
+            "bg_options": BG_OPTIONS,
+            "font_options": FONT_OPTIONS,
+            "tuned_models": tuned_info,
+            "active_tuned_lang": active_tuned,
+            "offline_translate": offline_info,
+        })
+    except Exception as e:
+        # Fallback: return at minimum the essential data so dropdowns populate
+        log.error(f"Config endpoint error: {e}")
+        return JSONResponse({
+            **_style_config(),
+            "has_api_key": bool(config.get("deepl_api_key","")),
+            "backend": "error",
+            "is_whisper": False,
+            "translation_count": config.get("translation_count", 1),
+            "translations": config.get("translations", []),
+            "font_css": _font_css(config.get("font_family","atkinson")),
+            "source_langs": DEEPL_SOURCE_LANGS,
+            "target_langs": DEEPL_TARGET_LANGS,
+            "color_palette": COLOR_PALETTE,
+            "bg_options": BG_OPTIONS,
+            "font_options": FONT_OPTIONS,
+            "tuned_models": {},
+            "active_tuned_lang": "",
+            "offline_translate": {"opus": {}, "m2m100": {}},
+        })
 
 @operator_app.post("/api/config")
 async def o_update(
@@ -751,6 +911,202 @@ async def o_rm_footer():
         "all_translations": config.get("translations",[])})
     return JSONResponse({"status":"ok"})
 
+# ── Tuned Models API ──
+
+@operator_app.get("/api/tuned-models")
+async def o_tuned_models():
+    """List all tuned models with download/availability status."""
+    return JSONResponse(tuned_models.get_all_status(MODELS_DIR))
+
+
+@operator_app.post("/api/tuned-models/download")
+async def o_tuned_download(lang: str = Form(...)):
+    """Start downloading and converting a tuned model for a language."""
+    lang = lang.upper()
+    if lang not in tuned_models.TUNED_MODELS:
+        return JSONResponse({"error": f"No tuned model for {lang}"}, 400)
+
+    if tuned_models.is_available(MODELS_DIR, lang):
+        return JSONResponse({"status": "already_available"})
+
+    prog = tuned_models.get_progress(lang)
+    if prog["status"] in ("downloading", "converting", "starting"):
+        return JSONResponse({"status": "already_in_progress"})
+
+    # Detect VRAM for quantization
+    gpu = detect_gpu()
+    vram = gpu.get("vram", 0)
+
+    tuned_models.download_and_convert(MODELS_DIR, lang, vram_mb=vram)
+    return JSONResponse({"status": "started", "vram": vram})
+
+
+@operator_app.get("/api/tuned-models/progress/{lang}")
+async def o_tuned_progress(lang: str):
+    """Get download/conversion progress for a language."""
+    return JSONResponse(tuned_models.get_progress(lang.upper()))
+
+
+@operator_app.post("/api/tuned-models/switch")
+async def o_tuned_switch(lang: str = Form(...)):
+    """Hot-swap the active Whisper model to a tuned model for this language.
+    Pauses captioning briefly (~2-5s) during the swap."""
+    global stt_backend, captioning_paused
+    lang = lang.upper()
+
+    if not isinstance(stt_backend, WhisperBackend):
+        return JSONResponse({"error": "Model switching only works with Whisper backend"}, 400)
+
+    model_path = tuned_models.get_model_path(MODELS_DIR, lang)
+    if not tuned_models.is_available(MODELS_DIR, lang):
+        return JSONResponse({"error": f"Tuned model for {lang} not downloaded"}, 400)
+
+    was_paused = captioning_paused
+    try:
+        # Step 1: Pause captioning to let audio loop drain
+        captioning_paused = True
+        await broadcast_all({"type": "captioning_paused", "paused": True})
+        await asyncio.sleep(1.5)  # let audio loop drain its queue
+
+        # Step 2: Swap the model
+        log.info(f"Hot-swapping to tuned model for {lang}: {model_path}")
+        from faster_whisper import WhisperModel
+        old_device = stt_backend._device
+        old_compute = stt_backend._compute_type
+
+        new_model = WhisperModel(str(model_path), device=old_device,
+                                 compute_type=old_compute)
+        stt_backend._model = new_model
+        stt_backend._model_name = f"tuned-{lang.lower()}"
+        log.info(f"Model swapped to tuned-{lang.lower()} ({old_compute}, {old_device})")
+
+        # Step 3: Resume captioning
+        if not was_paused:
+            captioning_paused = False
+            await broadcast_all({"type": "captioning_paused", "paused": False})
+
+        # Notify all clients of new model
+        await broadcast_all({"type": "status", "model": stt_backend.name})
+
+        return JSONResponse({"status": "ok", "model": stt_backend.name})
+
+    except Exception as e:
+        log.error(f"Hot-swap failed: {e}")
+        if not was_paused:
+            captioning_paused = False
+            await broadcast_all({"type": "captioning_paused", "paused": False})
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@operator_app.post("/api/tuned-models/revert")
+async def o_tuned_revert():
+    """Revert to the default Whisper model (large-v3-turbo)."""
+    global stt_backend, captioning_paused
+
+    if not isinstance(stt_backend, WhisperBackend):
+        return JSONResponse({"error": "Model switching only works with Whisper backend"}, 400)
+
+    was_paused = captioning_paused
+    try:
+        captioning_paused = True
+        await broadcast_all({"type": "captioning_paused", "paused": True})
+        await asyncio.sleep(1.5)
+
+        log.info("Reverting to default Whisper model")
+        from faster_whisper import WhisperModel
+        old_device = stt_backend._device
+        old_compute = stt_backend._compute_type
+        default_model = "large-v3-turbo"
+
+        new_model = WhisperModel(default_model, device=old_device,
+                                 compute_type=old_compute)
+        stt_backend._model = new_model
+        stt_backend._model_name = default_model
+        log.info(f"Reverted to {default_model} ({old_compute}, {old_device})")
+
+        if not was_paused:
+            captioning_paused = False
+            await broadcast_all({"type": "captioning_paused", "paused": False})
+
+        await broadcast_all({"type": "status", "model": stt_backend.name})
+        return JSONResponse({"status": "ok", "model": stt_backend.name})
+
+    except Exception as e:
+        log.error(f"Revert failed: {e}")
+        if not was_paused:
+            captioning_paused = False
+            await broadcast_all({"type": "captioning_paused", "paused": False})
+        return JSONResponse({"error": str(e)}, 500)
+
+
+# ── Offline Translation API ──
+
+@operator_app.get("/api/offline-translate/status")
+async def o_offline_status():
+    """Get status of all offline translation models."""
+    return JSONResponse(offline_translate.get_all_status(MODELS_DIR))
+
+@operator_app.post("/api/offline-translate/download-opus")
+async def o_offline_download_opus(lang: str = Form(...)):
+    """Start downloading an OPUS-MT model for a language."""
+    lang = lang.upper()
+    if not offline_translate.has_opus_model(lang):
+        return JSONResponse({"error": f"No OPUS-MT model for {lang}"}, 400)
+    if offline_translate.is_opus_available(str(MODELS_DIR), lang):
+        return JSONResponse({"status": "already_available"})
+    key = f"opus-{lang}"
+    prog = offline_translate.get_progress(key)
+    if prog["status"] in ("downloading", "converting", "starting"):
+        return JSONResponse({"status": "already_in_progress"})
+    offline_translate.download_opus_model(str(MODELS_DIR), lang)
+    return JSONResponse({"status": "started"})
+
+@operator_app.post("/api/offline-translate/download-m2m")
+async def o_offline_download_m2m():
+    """Start downloading M2M-100 1.2B model."""
+    if offline_translate.is_m2m_available(str(MODELS_DIR)):
+        return JSONResponse({"status": "already_available"})
+    prog = offline_translate.get_progress("m2m100")
+    if prog["status"] in ("downloading", "converting", "starting"):
+        return JSONResponse({"status": "already_in_progress"})
+    offline_translate.download_m2m_model(str(MODELS_DIR))
+    return JSONResponse({"status": "started"})
+
+@operator_app.get("/api/offline-translate/progress/{key}")
+async def o_offline_progress(key: str):
+    """Get download progress for a model (e.g. 'opus-ES', 'm2m100')."""
+    return JSONResponse(offline_translate.get_progress(key))
+
+
+@operator_app.get("/api/mics")
+async def o_list_mics():
+    """List available microphones."""
+    devs = sd.query_devices()
+    default_idx = sd.default.device[0]
+    mics = []
+    for i, d in enumerate(devs):
+        if d["max_input_channels"] > 0:
+            mics.append({"index": i, "name": d["name"],
+                         "is_default": i == default_idx})
+    return JSONResponse({"mics": mics, "current": current_mic_index})
+
+@operator_app.post("/api/set-mic")
+async def o_set_mic(request: Request):
+    """Change the active microphone without restarting the server."""
+    global current_mic_index
+    form = await request.form()
+    raw = form.get("mic_index", "")
+    new_idx = int(raw) if raw not in ("", "null", "None") else None
+    if new_idx == current_mic_index:
+        return JSONResponse({"status": "ok", "changed": False,
+                             "mic_index": current_mic_index})
+    current_mic_index = new_idx
+    mic_restart_event.set()
+    name = sd.query_devices(new_idx)["name"] if new_idx is not None else "default"
+    log.info(f"Mic change requested: [{new_idx or 'default'}] {name}")
+    return JSONResponse({"status": "ok", "changed": True,
+                         "mic_index": current_mic_index, "mic_name": name})
+
 @operator_app.websocket("/ws")
 async def o_ws(ws: WebSocket):
     await ws.accept(); operator_clients.add(ws)
@@ -785,6 +1141,32 @@ async def o_ws(ws: WebSocket):
                 save_transcripts = bool(msg.get("enabled", True))
                 log.info(f"Transcript saving {'ON' if save_transcripts else 'OFF'}")
                 await broadcast_all({"type":"save_transcripts","enabled":save_transcripts})
+            elif msg.get("type") == "correct_caption":
+                lid = msg.get("line_id")
+                new_text = msg.get("text", "").strip()
+                if lid is not None and new_text:
+                    # Find the original line
+                    original = None
+                    with _line_id_lock:
+                        for ln in _recent_lines:
+                            if ln["id"] == lid:
+                                original = dict(ln)
+                                ln["text"] = new_text  # update buffer
+                                break
+                    if original:
+                        speaker = original["speaker"]
+                        src_lang = original["src_lang"]
+                        log.info(f"   CORRECTION [{lid}]: {new_text}")
+                        # Broadcast corrected caption to all clients
+                        await broadcast_all({"type":"correct_line","line_id":lid,
+                            "text":new_text,"speaker":speaker})
+                        # Save corrected line to transcript
+                        prefix = f"{speaker}: " if speaker else ""
+                        _save_line(src_lang, f"[corrected] {prefix}{new_text}")
+                        # Re-translate in background threads
+                        loop = asyncio.get_event_loop()
+                        _translate_all(new_text, "correct_translation", loop,
+                                       line_id=lid, speaker_override=speaker)
     except WebSocketDisconnect: operator_clients.discard(ws)
     except Exception: operator_clients.discard(ws)
 
@@ -831,19 +1213,25 @@ async def dict_save(text: str = Form(...), filename: str = Form(None)):
 
 @dictation_app.websocket("/ws")
 async def dict_ws(ws: WebSocket):
-    global captioning_paused
+    global dictation_active
     await ws.accept(); dictation_clients.add(ws)
     await ws.send_text(json.dumps({"type":"status","state":"connected",
-        "captioning_paused": captioning_paused}))
+        "dictation_active": dictation_active}))
     try:
         while True:
             msg = json.loads(await ws.receive_text())
-            if msg.get("type") == "set_captioning_paused":
-                captioning_paused = bool(msg.get("paused", False))
-                log.info(f"Captioning {'PAUSED' if captioning_paused else 'LIVE'}")
-                await broadcast_all({"type":"captioning_paused","paused":captioning_paused})
-    except WebSocketDisconnect: dictation_clients.discard(ws)
-    except Exception: dictation_clients.discard(ws)
+            if msg.get("type") == "set_dictation_active":
+                dictation_active = bool(msg.get("active", False))
+                log.info(f"Dictation {'ACTIVE' if dictation_active else 'STOPPED'}")
+                await broadcast_dictation({"type":"dictation_active","active":dictation_active})
+    except WebSocketDisconnect:
+        dictation_clients.discard(ws)
+        if not dictation_clients:
+            dictation_active = False
+    except Exception:
+        dictation_clients.discard(ws)
+        if not dictation_clients:
+            dictation_active = False
 
 
 # ── Startup ──
@@ -948,7 +1336,7 @@ def main():
     parser.add_argument("--model", default="large-v3-turbo")
     parser.add_argument("--compute-type", default="float16", choices=["float16","int8","int8_float16","float32"])
     parser.add_argument("--device", default="cuda", choices=["cuda","cpu","auto"])
-    parser.add_argument("--vosk-model", default="large", choices=["small","large"])
+    parser.add_argument("--vosk-model", default="auto", choices=["auto","small","large"])
     parser.add_argument("--mic", type=int, default=None)
     parser.add_argument("--list-mics", action="store_true")
     parser.add_argument("--display-port", type=int, default=3000)

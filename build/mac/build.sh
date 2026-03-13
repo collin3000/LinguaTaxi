@@ -50,6 +50,8 @@ cp "$PROJECT_DIR/operator.html" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/dictation.html" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/requirements.txt" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/download_models.py" "$APP_BUNDLE/Contents/Resources/"
+cp "$PROJECT_DIR/tuned_models.py" "$APP_BUNDLE/Contents/Resources/"
+cp "$PROJECT_DIR/offline_translate.py" "$APP_BUNDLE/Contents/Resources/"
 
 # ── Icon ──
 if [ -f "$PROJECT_DIR/assets/linguataxi.icns" ]; then

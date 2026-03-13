@@ -20,9 +20,9 @@ body{display:flex}
 .ptitle .dot.conn{background:#4CAF50;box-shadow:0 0 6px #4CAF50}
 
 .card{background:var(--card);border:1px solid var(--bdr);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px}
-.clbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.4)}
+.clbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.6)}
 input[type="text"],input[type="password"],select{width:100%;padding:7px 9px;border-radius:5px;border:1px solid var(--bdr);background:rgba(255,255,255,.05);color:#fff;font-family:inherit;font-size:12px}
-input::placeholder{color:rgba(255,255,255,.18)}
+input::placeholder{color:rgba(255,255,255,.4)}
 input:focus,select:focus{outline:none;border-color:var(--ac)}
 select option{background:var(--card)}
 input[type="range"]{-webkit-appearance:none;width:100%;height:5px;border-radius:3px;background:rgba(255,255,255,.1);outline:none}
@@ -30,11 +30,11 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 .btn{padding:7px 12px;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-family:inherit;font-size:11px;text-transform:uppercase;letter-spacing:.04em;transition:.15s}
 .btn-p{background:var(--ac);color:#000}.btn-p:hover{filter:brightness(1.15)}
 .btn-d{background:#f44336;color:#fff}.btn-d:hover{filter:brightness(1.15)}
-.btn-g{background:rgba(255,255,255,.05);color:rgba(255,255,255,.5);border:1px solid var(--bdr)}.btn-g:hover{background:rgba(255,255,255,.1)}
+.btn-g{background:rgba(255,255,255,.05);color:rgba(255,255,255,.7);border:1px solid var(--bdr)}.btn-g:hover{background:rgba(255,255,255,.1)}
 .row{display:flex;gap:6px;align-items:center}
 .row input,.row select{flex:1}
-.vd{font-size:11px;color:rgba(255,255,255,.35);font-variant-numeric:tabular-nums}
-.hint{font-size:10px;color:rgba(255,255,255,.2)}
+.vd{font-size:11px;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums}
+.hint{font-size:10px;color:rgba(255,255,255,.45)}
 .warn{background:rgba(255,152,0,.1);border:1px solid rgba(255,152,0,.3);border-radius:6px;padding:10px;font-size:12px;color:#FFB74D}
 
 /* Color swatches */
@@ -48,7 +48,7 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 .bg-opt{width:44px;height:32px;border-radius:5px;border:2px solid transparent;cursor:pointer;transition:.15s;position:relative}
 .bg-opt:hover{transform:scale(1.05)}
 .bg-opt.active{border-color:var(--ac);box-shadow:0 0 8px rgba(79,195,247,.3)}
-.bg-opt .bg-name{position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:8px;color:rgba(255,255,255,.3);white-space:nowrap}
+.bg-opt .bg-name{position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:8px;color:rgba(255,255,255,.5);white-space:nowrap}
 
 /* Font options */
 .font-opts{display:flex;flex-direction:column;gap:4px}
@@ -56,36 +56,55 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 .font-opt:hover{background:rgba(255,255,255,.04)}
 .font-opt.active{border-color:var(--ac);background:rgba(79,195,247,.08)}
 .font-opt .fn{font-size:12px;font-weight:600;color:#fff}
-.font-opt .fnote{font-size:9px;color:rgba(255,255,255,.3)}
+.font-opt .fnote{font-size:9px;color:rgba(255,255,255,.5)}
 
 /* Speaker buttons */
 .spgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
-.spbtn{padding:7px 5px;border:1px solid var(--bdr);border-radius:5px;background:rgba(255,255,255,.03);color:rgba(255,255,255,.5);font-family:inherit;font-weight:600;font-size:11px;cursor:pointer;transition:.15s;text-align:center;position:relative}
+.spbtn{padding:7px 5px;border:1px solid var(--bdr);border-radius:5px;background:rgba(255,255,255,.03);color:rgba(255,255,255,.7);font-family:inherit;font-weight:600;font-size:11px;cursor:pointer;transition:.15s;text-align:center;position:relative}
 .spbtn:hover{background:rgba(255,255,255,.07)}
 .spbtn.act{background:rgba(79,195,247,.12);border-color:var(--ac);color:#fff}
-.spbtn .hk{position:absolute;top:1px;right:3px;font-size:8px;color:rgba(255,255,255,.18)}
+.spbtn .hk{position:absolute;top:1px;right:3px;font-size:8px;color:rgba(255,255,255,.4)}
 .spwide{grid-column:1/-1}
+.sp-edit{grid-column:1/-1;display:flex;gap:4px;align-items:center;padding:6px 8px;background:rgba(79,195,247,.08);border:1px solid var(--ac);border-radius:5px}
+.sp-edit input{flex:1;min-width:0;padding:5px 7px;border-radius:4px;border:1px solid var(--bdr);background:rgba(255,255,255,.08);color:#fff;font-family:inherit;font-size:11px}
+.sp-edit input:focus{outline:none;border-color:var(--ac)}
+.sp-edit select{width:68px;padding:5px 4px;border-radius:4px;border:1px solid var(--bdr);background:rgba(255,255,255,.08);color:#fff;font-family:inherit;font-size:11px}
+.sp-edit .btn{padding:5px 8px;font-size:10px}
 
 /* Translation slot config */
 .tslot{background:rgba(255,255,255,.02);border:1px solid var(--bdr);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px}
 .tslot-hdr{display:flex;justify-content:space-between;align-items:center}
-.tslot-num{font-size:10px;font-weight:700;color:rgba(255,255,255,.35)}
-.tslot-dest{font-size:9px;color:rgba(255,255,255,.2);font-style:italic}
+.tslot-num{font-size:10px;font-weight:700;color:rgba(255,255,255,.55)}
+.tslot-dest{font-size:9px;color:rgba(255,255,255,.45);font-style:italic}
 
 /* ── Right: Preview ── */
 .preview{flex:1;display:flex;flex-direction:column;padding:16px;overflow:hidden}
-.prev-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.25);margin-bottom:8px}
+.prev-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.5);margin-bottom:8px}
 .prev-box{flex:1;border-radius:8px;padding:16px;overflow:hidden;display:flex;flex-direction:column;gap:8px;transition:background .3s}
 .prev-session{font-weight:800;font-size:16px;text-align:center;color:#fff;text-transform:uppercase}
 .prev-speaker{font-weight:700;font-size:12px;text-align:center;color:var(--ac);text-transform:uppercase;letter-spacing:.08em;min-height:1em}
 .prev-section{display:flex;flex-direction:column;gap:2px}
 .prev-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#90CAF9}
 .prev-text{font-weight:600;font-size:14px;line-height:1.35;min-height:1.5em;overflow-y:auto;max-height:120px}
+.prev-line{padding:2px 4px;border-radius:3px;cursor:default;word-wrap:break-word}
+.prev-line:hover{background:rgba(255,255,255,.06)}
+.prev-line .sp-tag{font-weight:800;text-transform:uppercase;opacity:.7;font-size:12px}
+.prev-line.interim{opacity:.4}
+.prev-line.corrected{border-left:2px solid #4CAF50;padding-left:6px}
+
+/* Right-click edit dialog */
+.edit-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:999;background:rgba(0,0,0,.5)}
+.edit-dialog{position:fixed;z-index:1000;background:#1a1a3e;border:1px solid var(--ac);border-radius:8px;padding:14px;box-shadow:0 8px 32px rgba(0,0,0,.6);width:420px;max-width:90vw}
+.edit-dialog h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ac);margin-bottom:8px}
+.edit-dialog textarea{width:100%;padding:8px;border-radius:5px;border:1px solid var(--bdr);background:rgba(255,255,255,.08);color:#fff;font-family:inherit;font-size:13px;resize:vertical;min-height:60px}
+.edit-dialog textarea:focus{outline:none;border-color:var(--ac)}
+.edit-dialog .edit-btns{display:flex;gap:6px;margin-top:8px;justify-content:flex-end}
+.edit-dialog .edit-original{font-size:11px;color:rgba(255,255,255,.45);margin-bottom:6px;word-wrap:break-word}
 .prev-interim{opacity:.4}
 .prev-divider{height:1px;background:rgba(255,255,255,.08)}
 .prev-footer{text-align:center;margin-top:auto}
 .prev-footer img{max-height:35px;border-radius:3px}
-.badge{font-size:10px;color:rgba(255,255,255,.18);text-align:center}
+.badge{font-size:10px;color:rgba(255,255,255,.45);text-align:center}
 </style>
 </head>
 <body>
@@ -113,7 +132,22 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
     <span class="clbl">Languages</span>
     <div>
       <span style="font-size:11px">Input Language (what speakers speak)</span>
-      <select id="iInputLang" onchange="saveAll()"></select>
+      <select id="iInputLang" onchange="onInputLangChange()"></select>
+    </div>
+    <div id="tunedRow" style="display:none;margin-top:4px">
+      <div style="display:flex;align-items:center;gap:6px;padding:8px;border-radius:6px;background:rgba(255,255,255,.03);border:1px solid var(--bdr)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.55)" id="tunedLabel">Tuned Model</div>
+          <div style="font-size:11px;margin-top:2px" id="tunedStatus">—</div>
+          <div id="tunedProgressWrap" style="display:none;margin-top:4px">
+            <div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden">
+              <div id="tunedProgressBar" style="height:100%;background:var(--ac);width:0%;transition:width .3s"></div>
+            </div>
+            <div style="font-size:9px;color:rgba(255,255,255,.45);margin-top:2px" id="tunedProgressMsg"></div>
+          </div>
+        </div>
+        <button class="btn btn-g" id="tunedBtn" onclick="onTunedAction()" style="white-space:nowrap;font-size:10px">Download</button>
+      </div>
     </div>
     <div>
       <span style="font-size:11px">Number of Translations</span>
@@ -132,7 +166,7 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 
   <!-- Speakers -->
   <div class="card">
-    <span class="clbl">Speakers (keys 1-9, 0=none)</span>
+    <span class="clbl">Speakers (keys 1-9, 0=none, double-click to edit)</span>
     <div class="spgrid" id="spGrid"></div>
     <div class="row">
       <input type="text" id="iNewSp" placeholder="Add speaker..." onkeydown="if(event.key==='Enter')addSp()">
@@ -143,7 +177,7 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
   <div class="card" style="border:2px solid rgba(76,175,80,.3);padding:10px">
     <span class="clbl">Session Controls</span>
     <button class="btn" id="liveBtn" onclick="toggleLive()" style="width:100%;padding:12px;font-size:14px;font-weight:800;background:#4CAF50;color:#fff;letter-spacing:.06em">▶ GO LIVE — Start Captioning</button>
-    <button class="btn" id="pauseBtn" onclick="togglePause()" style="width:100%;background:rgba(255,255,255,.08);color:rgba(255,255,255,.35);font-weight:800;border:1px solid rgba(255,255,255,.1)">▶ Resume Translation (uses API credits)</button>
+    <button class="btn" id="pauseBtn" onclick="togglePause()" style="width:100%;background:rgba(255,255,255,.08);color:rgba(255,255,255,.55);font-weight:800;border:1px solid rgba(255,255,255,.1)">▶ Resume Translation (uses API credits)</button>
     <div class="hint" id="sessionHint">Both captioning and translation are paused. Configure your settings, then go live.</div>
   </div>
   <div class="card" style="flex-direction:row;align-items:center;justify-content:space-between;padding:10px 12px">
@@ -205,7 +239,7 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 
 <!-- Right: Preview -->
 <div class="preview">
-  <div class="prev-title">Live Preview (mirrors audience display)</div>
+  <div class="prev-title">Live Preview (mirrors audience display) — right-click a line to correct</div>
   <div class="prev-box" id="prevBox">
     <div class="prev-session" id="pTitle">Live Captioning</div>
     <div class="prev-speaker" id="pSpeaker"></div>
@@ -216,16 +250,22 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 
 <script>
 let ws=null, recon=0, cfg={};
-let speakers=[], activeSp=0;
+let speakers=[], activeSp=0, editingSpeakerIdx=-1;
 let palette=[], bgOpts=[], fontOpts=[], srcLangs={}, tgtLangs={};
-let translations=[]; // [{lang, color}]
+let translations=[]; // [{lang, color, mode}]
 let transCount=1;
+let tunedModels={}, activeTunedLang='', isWhisper=false;
+let tunedPollTimer=null;
+let offlineStatus={}; // {opus:{...}, m2m100:{...}}
+let offlinePollTimers={}; // {key: timer}
 
 function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
 
 // ── Load config ──
+let cfgRetries=0;
 function loadCfg(){
-  fetch('/api/config').then(r=>r.json()).then(c=>{
+  fetch('/api/config').then(r=>{if(!r.ok)throw new Error('Config request failed: '+r.status);return r.json()}).then(c=>{
+    cfgRetries=0;
     cfg=c;
     palette=c.color_palette||[];
     bgOpts=c.bg_options||[];
@@ -245,10 +285,18 @@ function loadCfg(){
     translations=c.translations||[{lang:'ES',color:'#FFD54F'}];
     speakers=c.speakers||[];
 
-    if(!c.has_api_key)document.getElementById('warn').style.display='block';
+    // Show API key warning only if at least one slot uses DeepL
+    const anyDeepL=translations.some(t=>!t.mode||t.mode==='deepl');
+    if(!c.has_api_key&&anyDeepL)document.getElementById('warn').style.display='block';
+    else document.getElementById('warn').style.display='none';
     if(c.backend)document.getElementById('badge').textContent='Engine: '+c.backend;
+    tunedModels=c.tuned_models||{};
+    activeTunedLang=c.active_tuned_lang||'';
+    isWhisper=!!c.is_whisper;
+    offlineStatus=c.offline_translate||{opus:{},m2m100:{}};
 
     buildInputLangSelect(c.input_lang||'EN');
+    updateTunedUI();
     buildBgOpts(c.bg_color||'#00004D');
     buildFontOpts(c.font_family||'atkinson');
     buildTransSlots();
@@ -263,6 +311,15 @@ function loadCfg(){
       document.getElementById('pFooterImg').src='/uploads/'+c.footer_image;
       document.getElementById('pFooter').style.display='block';
     }
+  }).catch(e=>{
+    console.error('Config load failed:',e);
+    if(cfgRetries<3){
+      cfgRetries++;
+      document.getElementById('sTxt').textContent='Loading config (retry '+cfgRetries+')...';
+      setTimeout(loadCfg,1500);
+    } else {
+      document.getElementById('sTxt').textContent='Config error — check server logs ('+e.message+')';
+    }
   });
 }
 loadCfg();
@@ -276,6 +333,153 @@ function buildInputLangSelect(cur){
     if(code===cur)o.selected=true;
     sel.appendChild(o);
   });
+}
+
+// ── Input language change (also updates tuned UI) ──
+function onInputLangChange(){
+  updateTunedUI();
+  saveAll();
+}
+
+// ── Tuned model UI ──
+function updateTunedUI(){
+  const lang=document.getElementById('iInputLang').value;
+  const row=document.getElementById('tunedRow');
+  const info=tunedModels[lang];
+
+  // Only show for Whisper backend + languages that have tuned models
+  if(!isWhisper||!info){
+    row.style.display='none';
+    if(tunedPollTimer){clearInterval(tunedPollTimer);tunedPollTimer=null}
+    return;
+  }
+
+  row.style.display='block';
+  const label=document.getElementById('tunedLabel');
+  const status=document.getElementById('tunedStatus');
+  const btn=document.getElementById('tunedBtn');
+  const progWrap=document.getElementById('tunedProgressWrap');
+  const progBar=document.getElementById('tunedProgressBar');
+  const progMsg=document.getElementById('tunedProgressMsg');
+
+  label.textContent=info.name+' — Tuned Model';
+
+  if(info.available){
+    progWrap.style.display='none';
+    if(activeTunedLang===lang){
+      status.innerHTML='<span style="color:#4CAF50">Active</span> — using tuned model';
+      btn.textContent='Revert';
+      btn.className='btn btn-g';
+    } else {
+      status.innerHTML='<span style="color:#4FC3F7">Ready</span> — tuned model downloaded';
+      btn.textContent='Switch';
+      btn.className='btn btn-p';
+    }
+    if(tunedPollTimer){clearInterval(tunedPollTimer);tunedPollTimer=null}
+  } else if(info.download_status==='downloading'||info.download_status==='converting'||info.download_status==='starting'){
+    status.textContent='Processing...';
+    btn.textContent='...';
+    btn.className='btn btn-g';
+    btn.disabled=true;
+    progWrap.style.display='block';
+    progBar.style.width=info.download_pct+'%';
+    progMsg.textContent=info.download_message||'';
+    startTunedPoll(lang);
+  } else if(info.download_status==='error'){
+    status.innerHTML='<span style="color:#f44336">Error</span>: '+esc(info.download_message||'unknown');
+    btn.textContent='Retry';
+    btn.className='btn btn-p';
+    btn.disabled=false;
+    progWrap.style.display='none';
+    if(tunedPollTimer){clearInterval(tunedPollTimer);tunedPollTimer=null}
+  } else {
+    status.textContent='Not downloaded (~'+info.size_gb+' GB)';
+    btn.textContent='Download';
+    btn.className='btn btn-p';
+    btn.disabled=false;
+    progWrap.style.display='none';
+    if(tunedPollTimer){clearInterval(tunedPollTimer);tunedPollTimer=null}
+  }
+}
+
+function startTunedPoll(lang){
+  if(tunedPollTimer) return;
+  tunedPollTimer=setInterval(()=>{
+    fetch('/api/tuned-models/progress/'+lang).then(r=>r.json()).then(p=>{
+      if(!tunedModels[lang]) return;
+      tunedModels[lang].download_status=p.status;
+      tunedModels[lang].download_pct=p.pct;
+      tunedModels[lang].download_message=p.message;
+      if(p.status==='ready'){
+        tunedModels[lang].available=true;
+        clearInterval(tunedPollTimer);tunedPollTimer=null;
+      } else if(p.status==='error'){
+        clearInterval(tunedPollTimer);tunedPollTimer=null;
+      }
+      updateTunedUI();
+    }).catch(()=>{});
+  },2000);
+}
+
+function onTunedAction(){
+  const lang=document.getElementById('iInputLang').value;
+  const info=tunedModels[lang];
+  if(!info) return;
+
+  if(info.available && activeTunedLang===lang){
+    // Revert to default model
+    document.getElementById('tunedBtn').disabled=true;
+    document.getElementById('tunedStatus').textContent='Reverting...';
+    fetch('/api/tuned-models/revert',{method:'POST'}).then(r=>r.json()).then(r=>{
+      if(r.status==='ok'){
+        activeTunedLang='';
+        if(r.model) document.getElementById('badge').textContent='Engine: '+r.model;
+      } else {
+        alert('Revert failed: '+(r.error||'unknown'));
+      }
+      document.getElementById('tunedBtn').disabled=false;
+      updateTunedUI();
+    }).catch(e=>{alert('Revert failed: '+e);document.getElementById('tunedBtn').disabled=false});
+  } else if(info.available){
+    // Switch to tuned model
+    document.getElementById('tunedBtn').disabled=true;
+    document.getElementById('tunedStatus').textContent='Switching model (~3s)...';
+    const fd=new FormData();fd.append('lang',lang);
+    fetch('/api/tuned-models/switch',{method:'POST',body:fd}).then(r=>r.json()).then(r=>{
+      if(r.status==='ok'){
+        activeTunedLang=lang;
+        if(r.model) document.getElementById('badge').textContent='Engine: '+r.model;
+      } else {
+        alert('Switch failed: '+(r.error||'unknown'));
+      }
+      document.getElementById('tunedBtn').disabled=false;
+      updateTunedUI();
+    }).catch(e=>{alert('Switch failed: '+e);document.getElementById('tunedBtn').disabled=false});
+  } else {
+    // Download
+    document.getElementById('tunedBtn').disabled=true;
+    const fd=new FormData();fd.append('lang',lang);
+    fetch('/api/tuned-models/download',{method:'POST',body:fd}).then(r=>r.json()).then(r=>{
+      if(r.status==='started'||r.status==='already_in_progress'){
+        tunedModels[lang].download_status='starting';
+        tunedModels[lang].download_pct=0;
+        tunedModels[lang].download_message='Starting download...';
+        startTunedPoll(lang);
+      } else if(r.status==='already_available'){
+        tunedModels[lang].available=true;
+      } else if(r.error){
+        tunedModels[lang].download_status='error';
+        tunedModels[lang].download_message=r.error;
+      }
+      document.getElementById('tunedBtn').disabled=false;
+      updateTunedUI();
+    }).catch(e=>{
+      tunedModels[lang].download_status='error';
+      tunedModels[lang].download_message=String(e);
+      document.getElementById('tunedBtn').disabled=false;
+      updateTunedUI();
+    });
+  }
 }
 
 // ── BG options ──
@@ -308,7 +512,7 @@ function onTransCountChange(){
   // Extend or shrink translations array
   while(translations.length<transCount){
     const defaultColors=['#FFD54F','#4FC3F7','#81C784','#FF8A80','#CE93D8'];
-    translations.push({lang:'ES',color:defaultColors[translations.length%5]});
+    translations.push({lang:'ES',color:defaultColors[translations.length%5],mode:'deepl'});
   }
   translations=translations.slice(0,transCount);
   buildTransSlots();
@@ -322,25 +526,177 @@ function buildTransSlots(){
   note.style.display=transCount>2?'block':'none';
 
   for(let i=0;i<transCount;i++){
-    const t=translations[i]||{lang:'ES',color:'#FFD54F'};
+    const t=translations[i]||{lang:'ES',color:'#FFD54F',mode:'deepl'};
+    if(!t.mode) t.mode='deepl';
     const dest=i<2?'Main display (3000)':'Extended display (3002)';
     const slot=document.createElement('div');slot.className='tslot';
+
+    const curMode=t.mode||'deepl';
     slot.innerHTML=`
       <div class="tslot-hdr"><span class="tslot-num">Translation ${i+1}</span><span class="tslot-dest">${dest}</span></div>
-      <select onchange="onSlotLangChange(${i},this.value)" id="tslot_lang_${i}"></select>`;
+      <select onchange="onSlotLangChange(${i},this.value)" id="tslot_lang_${i}"></select>
+      <select onchange="onSlotModeChange(${i},this.value)" id="tslot_mode_${i}" style="margin-top:4px">
+        <option value="deepl"${curMode==='deepl'?' selected':''}>DeepL (Online)</option>
+        <option value="offline-auto"${curMode==='offline-auto'?' selected':''}>Offline — Auto</option>
+        <option value="offline-opus"${curMode==='offline-opus'?' selected':''}>Offline — OPUS-MT (European)</option>
+        <option value="offline-m2m"${curMode==='offline-m2m'?' selected':''}>Offline — M2M-100 (All languages)</option>
+      </select>
+      <div id="tslot_offline_${i}" style="display:none;margin-top:4px;font-size:10px;color:rgba(255,255,255,.55)"></div>`;
     el.appendChild(slot);
+
     // Populate language dropdown
-    const sel=slot.querySelector('select');
+    const sel=slot.querySelector(`#tslot_lang_${i}`);
     Object.entries(tgtLangs).sort((a,b)=>a[1].localeCompare(b[1])).forEach(([code,name])=>{
       const o=document.createElement('option');o.value=code;o.textContent=name+' ('+code+')';
       if(code===t.lang)o.selected=true;
       sel.appendChild(o);
     });
+
+    updateSlotOfflineStatus(i);
+  }
+}
+
+function onSlotModeChange(idx,mode){
+  if(translations[idx])translations[idx].mode=mode;
+  updateSlotOfflineStatus(idx);
+  updateTranslationHint();
+  saveAll();
+}
+
+function updateSlotOfflineStatus(idx){
+  const t=translations[idx];
+  if(!t) return;
+  const el=document.getElementById('tslot_offline_'+idx);
+  if(!el) return;
+  const mode=t.mode||'deepl';
+  if(mode==='deepl'){el.style.display='none';return}
+  el.style.display='block';
+  const lang=t.lang;
+  const opus=offlineStatus.opus||{};
+  const m2m=offlineStatus.m2m100||{};
+  let html='';
+
+  if(mode==='offline-opus'){
+    const info=opus[lang];
+    if(info&&info.available){
+      html='<span style="color:#4CAF50">&#10003;</span> OPUS-MT '+esc(info.name||lang)+' ready';
+    } else if(info){
+      const opusSz=info.size_mb>=1000?(info.size_mb/1000).toFixed(1)+' GB':info.size_mb+' MB';
+      html='<span style="color:#FF9800">&#9888;</span> OPUS-MT not downloaded — <a href="#" onclick="downloadOfflineModel(\'opus\',\''+lang+'\');return false" style="color:var(--ac)">Download (~'+opusSz+')</a>';
+    } else {
+      html='<span style="color:#f44336">&#10007;</span> No OPUS-MT model for '+esc(lang);
+    }
+  } else if(mode==='offline-m2m'){
+    if(m2m.available){
+      html='<span style="color:#4CAF50">&#10003;</span> M2M-100 ready (all languages)';
+    } else {
+      const m2mSz=m2m.size_mb>=1000?(m2m.size_mb/1000).toFixed(1)+' GB':m2m.size_mb+' MB';
+      html='<span style="color:#FF9800">&#9888;</span> M2M-100 not downloaded — <a href="#" onclick="downloadOfflineModel(\'m2m\',\'\');return false" style="color:var(--ac)">Download (~'+m2mSz+')</a>';
+    }
+  } else {
+    // Auto
+    const opusInfo=opus[lang];
+    const hasOpus=opusInfo&&opusInfo.available;
+    const hasM2m=m2m.available;
+    if(hasOpus||hasM2m){
+      let parts=[];
+      if(hasOpus) parts.push('OPUS-MT');
+      if(hasM2m) parts.push('M2M-100');
+      html='<span style="color:#4CAF50">&#10003;</span> Ready ('+parts.join(' + ')+')';
+    } else {
+      html='<span style="color:#FF9800">&#9888;</span> No offline models — ';
+      if(opusInfo){
+        html+='<a href="#" onclick="downloadOfflineModel(\'opus\',\''+lang+'\');return false" style="color:var(--ac)">Download OPUS-MT</a>';
+      }
+      html+=' <a href="#" onclick="downloadOfflineModel(\'m2m\',\'\');return false" style="color:var(--ac)">Download M2M-100</a>';
+    }
+  }
+  el.innerHTML=html;
+}
+
+function downloadOfflineModel(type,lang){
+  if(type==='opus'){
+    // Show immediate "starting" feedback
+    _showDownloadProgress('opus-'+lang, 0, 'Starting download...');
+    const fd=new FormData();fd.append('lang',lang);
+    fetch('/api/offline-translate/download-opus',{method:'POST',body:fd}).then(r=>r.json()).then(r=>{
+      if(r.status==='started'||r.status==='already_in_progress'){
+        startOfflinePoll('opus-'+lang);
+      } else if(r.status==='already_available'){
+        refreshOfflineStatus();
+      }
+    });
+  } else {
+    _showDownloadProgress('m2m100', 0, 'Starting download...');
+    fetch('/api/offline-translate/download-m2m',{method:'POST'}).then(r=>r.json()).then(r=>{
+      if(r.status==='started'||r.status==='already_in_progress'){
+        startOfflinePoll('m2m100');
+      } else if(r.status==='already_available'){
+        refreshOfflineStatus();
+      }
+    });
+  }
+}
+
+// Track which slots are showing download progress for a given key
+const _downloadSlots={};
+
+function _showDownloadProgress(key, pct, msg){
+  // Find all translation slots that would display this key and show progress
+  for(let i=0;i<transCount;i++){
+    const t=translations[i]; if(!t) continue;
+    const el=document.getElementById('tslot_offline_'+i);
+    if(!el) continue;
+    const mode=t.mode||'deepl';
+    const lang=t.lang;
+    const matchesOpus = key==='opus-'+lang && (mode==='offline-opus'||mode==='auto');
+    const matchesM2m = key==='m2m100' && (mode==='offline-m2m'||mode==='auto');
+    if(matchesOpus||matchesM2m){
+      const label = key.startsWith('opus-') ? 'OPUS-MT' : 'M2M-100';
+      const bar = pct>0 ? '<div style="background:#333;border-radius:3px;height:6px;margin-top:3px;width:100%"><div style="background:var(--ac);height:6px;border-radius:3px;width:'+pct+'%"></div></div>' : '';
+      el.innerHTML='<span style="color:var(--ac)">&#8635;</span> '+label+' downloading... '+pct+'%' + (msg?' — '+esc(msg):'') + bar;
+      el.style.display='block';
+    }
+  }
+}
+
+function startOfflinePoll(key){
+  if(offlinePollTimers[key]) return;
+  offlinePollTimers[key]=setInterval(()=>{
+    fetch('/api/offline-translate/progress/'+key).then(r=>r.json()).then(p=>{
+      if(p.status==='ready'||p.status==='error'){
+        clearInterval(offlinePollTimers[key]);delete offlinePollTimers[key];
+        refreshOfflineStatus();
+      } else {
+        // Show progress while downloading/converting
+        _showDownloadProgress(key, p.pct||0, p.message||p.status||'');
+      }
+    }).catch(()=>{});
+  },2000);
+}
+
+function refreshOfflineStatus(){
+  fetch('/api/offline-translate/status').then(r=>r.json()).then(s=>{
+    offlineStatus=s;
+    for(let i=0;i<transCount;i++) updateSlotOfflineStatus(i);
+  }).catch(()=>{});
+}
+
+function updateTranslationHint(){
+  // Update the "uses API credits" hint on the pause button
+  const btn=document.getElementById('pauseBtn');
+  if(!btn||!translationPaused) return;
+  const allOffline=translations.slice(0,transCount).every(t=>(t.mode||'deepl').startsWith('offline'));
+  if(allOffline){
+    btn.textContent='\u25b6 Resume Translation (offline — no credits used)';
+  } else {
+    btn.textContent='\u25b6 Resume Translation (uses API credits)';
   }
 }
 
 function onSlotLangChange(idx,lang){
   if(translations[idx])translations[idx].lang=lang;
+  updateSlotOfflineStatus(idx);
   saveAll();
 }
 
@@ -378,11 +734,30 @@ function buildSpeakerBtns(){
   const el=document.getElementById('spGrid');
   let h=`<button class="spbtn spwide${activeSp===0?' act':''}" onclick="setSp(0)">No Label<span class="hk">0</span></button>`;
   speakers.forEach((n,i)=>{
-    h+=`<button class="spbtn${activeSp===i+1?' act':''}" onclick="setSp(${i+1})">${esc(n)}<span class="hk">${i+1}</span></button>`;
+    const idx=i+1;
+    if(editingSpeakerIdx===idx){
+      // Edit mode: inline form with name, key select, save, remove
+      const opts=speakers.map((_,j)=>`<option value="${j+1}"${j+1===idx?' selected':''}>Key ${j+1}</option>`).join('');
+      h+=`<div class="sp-edit">
+        <input type="text" value="${esc(n)}" id="spEditName" placeholder="Speaker name"
+          onkeydown="if(event.key==='Enter')saveSpEdit(${idx});if(event.key==='Escape')cancelSpEdit()">
+        <select id="spEditKey">${opts}</select>
+        <button class="btn btn-p" onclick="saveSpEdit(${idx})" title="Save">&#10003;</button>
+        <button class="btn btn-d" onclick="removeSp(${idx})" title="Remove speaker">&#10005;</button>
+        <button class="btn btn-g" onclick="cancelSpEdit()" title="Cancel">Esc</button>
+      </div>`;
+    } else {
+      h+=`<button class="spbtn${activeSp===idx?' act':''}" onclick="setSp(${idx})" ondblclick="startSpEdit(event,${idx})">${esc(n)}<span class="hk">${idx}</span></button>`;
+    }
   });
   el.innerHTML=h;
+  if(editingSpeakerIdx>0){
+    const inp=document.getElementById('spEditName');
+    if(inp){inp.focus();inp.select()}
+  }
 }
 function setSp(idx){
+  if(editingSpeakerIdx>0) return; // Don't switch while editing
   activeSp=idx;
   const name=(idx>0&&idx<=speakers.length)?speakers[idx-1]:'';
   document.getElementById('pSpeaker').textContent=name;
@@ -393,6 +768,43 @@ function addSp(){
   const inp=document.getElementById('iNewSp');
   const n=inp.value.trim();if(!n||speakers.length>=9)return;
   speakers.push(n);inp.value='';buildSpeakerBtns();saveAll();
+}
+function startSpEdit(e,idx){
+  e.preventDefault();e.stopPropagation();
+  editingSpeakerIdx=idx;
+  buildSpeakerBtns();
+}
+function saveSpEdit(idx){
+  const nameInp=document.getElementById('spEditName');
+  const keySelect=document.getElementById('spEditKey');
+  const newName=nameInp.value.trim();
+  if(!newName){removeSp(idx);return} // Empty name = remove
+  const newKey=parseInt(keySelect.value);
+  const arrayIdx=idx-1;
+  speakers[arrayIdx]=newName;
+  // If key changed, swap speakers at the two positions
+  if(newKey!==idx){
+    const newArrayIdx=newKey-1;
+    const tmp=speakers[arrayIdx];speakers[arrayIdx]=speakers[newArrayIdx];speakers[newArrayIdx]=tmp;
+    if(activeSp===idx)activeSp=newKey;
+    else if(activeSp===newKey)activeSp=idx;
+  }
+  editingSpeakerIdx=-1;
+  buildSpeakerBtns();saveAll();
+}
+function removeSp(idx){
+  speakers.splice(idx-1,1);
+  if(activeSp===idx)activeSp=0;
+  else if(activeSp>idx)activeSp--;
+  editingSpeakerIdx=-1;
+  buildSpeakerBtns();saveAll();
+  // Notify server of speaker change
+  const name=(activeSp>0&&activeSp<=speakers.length)?speakers[activeSp-1]:'';
+  if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'set_speaker',speaker:name}));
+}
+function cancelSpEdit(){
+  editingSpeakerIdx=-1;
+  buildSpeakerBtns();
 }
 
 let translationPaused = true;
@@ -419,12 +831,13 @@ function togglePause(){
   translationPaused = !translationPaused;
   const btn = document.getElementById('pauseBtn');
   if(translationPaused){
-    btn.textContent = '▶ Resume Translation (uses API credits)';
+    const allOffline=translations.slice(0,transCount).every(t=>(t.mode||'deepl').startsWith('offline'));
+    btn.textContent = allOffline ? '\u25b6 Resume Translation (offline \u2014 no credits used)' : '\u25b6 Resume Translation (uses API credits)';
     btn.style.background = 'rgba(255,255,255,.08)';
-    btn.style.color = 'rgba(255,255,255,.35)';
+    btn.style.color = 'rgba(255,255,255,.55)';
     btn.style.borderColor = 'rgba(255,255,255,.1)';
   } else {
-    btn.textContent = '⏸ Pause Translation';
+    btn.textContent = '\u23f8 Pause Translation';
     btn.style.background = '#FF9800';
     btn.style.color = '#000';
     btn.style.borderColor = '#FF9800';
@@ -459,8 +872,7 @@ function updateSaveToggleUI(){
 }
 
 function clearCaptions(){
-  // Clear preview
-  document.querySelectorAll('.prev-text').forEach(e=>{e.innerHTML='<span style="opacity:.15;font-style:italic">...</span>'});
+  prevClearAll();
   if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'clear_captions'}));
 }
 
@@ -511,13 +923,16 @@ function saveAll(){
   fetch('/api/config',{method:'POST',body:fd}).then(r=>r.json()).then(()=>{
     document.getElementById('pTitle').textContent=document.getElementById('iTitle').value||'Live Captioning';
     const hasKey=!!document.getElementById('iKey').value;
-    document.getElementById('warn').style.display=hasKey?'none':'block';
+    const anyDeepL=translations.some(t=>!t.mode||t.mode==='deepl');
+    document.getElementById('warn').style.display=(!hasKey&&anyDeepL)?'block':'none';
     applyPreviewStyle();
     updatePreview();
   });
 }
 
-// ── Preview ──
+// ── Preview (accumulating lines with right-click correction) ──
+const prevSlots={}; // slotId -> {el, lines[], interimEl, color, lastSpeaker}
+
 function applyPreviewStyle(){
   const box=document.getElementById('prevBox');
   const abg=document.querySelector('.bg-opt.active');
@@ -526,24 +941,141 @@ function applyPreviewStyle(){
 
 function updatePreview(){
   const el=document.getElementById('pSections');el.innerHTML='';
+  Object.keys(prevSlots).forEach(k=>delete prevSlots[k]);
   const inputName=srcLangs[document.getElementById('iInputLang').value]||'English';
   const capColor=document.querySelector('#captionColors .swatch.active');
   const cc=capColor?capColor.style.background:'#fff';
 
   // Caption section
-  let h=`<div class="prev-section"><div class="prev-lbl">${esc(inputName)} Captioning</div>
-    <div class="prev-text" id="pCaption" style="color:${cc}"><span style="opacity:.15;font-style:italic">Waiting...</span></div></div>`;
+  _addPrevSection(el, 'caption', inputName+' Captioning', cc);
 
   // Translation sections
   for(let i=0;i<transCount;i++){
     const t=translations[i]||{lang:'ES',color:'#FFD54F'};
     const name=tgtLangs[t.lang]||t.lang;
-    const dest=i<2?'':'<span style="opacity:.3;font-size:8px"> (ext)</span>';
-    h+=`<div class="prev-divider"></div>
-    <div class="prev-section"><div class="prev-lbl">${esc(name)}${dest}</div>
-    <div class="prev-text" id="pTrans${i}" style="color:${t.color}"><span style="opacity:.15;font-style:italic">...</span></div></div>`;
+    const dest=i<2?'':'(ext)';
+    const dv=document.createElement('div');dv.className='prev-divider';el.appendChild(dv);
+    _addPrevSection(el, 'trans_'+i, name+(dest?' '+dest:''), t.color);
   }
-  el.innerHTML=h;
+}
+
+function _addPrevSection(parent, id, label, color){
+  const sec=document.createElement('div');sec.className='prev-section';
+  const lbl=document.createElement('div');lbl.className='prev-lbl';lbl.textContent=label;
+  sec.appendChild(lbl);
+  const box=document.createElement('div');box.className='prev-text';box.style.color=color;
+  const interim=document.createElement('div');interim.className='prev-line interim';interim.style.display='none';
+  box.appendChild(interim);
+  sec.appendChild(box);parent.appendChild(sec);
+  prevSlots[id]={el:box, lines:[], interimEl:interim, color:color, lastSpeaker:null};
+}
+
+function prevAddLine(slotId, text, speaker, lineId){
+  const s=prevSlots[slotId]; if(!s)return;
+  const line=document.createElement('div');
+  line.className='prev-line';line.style.color=s.color;
+  if(lineId!==undefined) line.dataset.lineId=lineId;
+  if(speaker && speaker!==s.lastSpeaker){
+    const tag=document.createElement('span');tag.className='sp-tag';
+    tag.textContent=speaker+': ';line.appendChild(tag);s.lastSpeaker=speaker;
+  }
+  const txt=document.createTextNode(text);line.appendChild(txt);line._textNode=txt;
+  line._originalText=text; // store for edit dialog
+  // Right-click for captions only (slotId==='caption')
+  if(slotId==='caption' && lineId!==undefined){
+    line.oncontextmenu=e=>{e.preventDefault();openEditDialog(lineId, text, line)};
+    line.title='Right-click to correct';
+  }
+  s.el.insertBefore(line, s.interimEl);
+  s.interimEl.style.display='none';
+  s.lines.push(line);
+  while(s.lines.length>50){s.lines.shift().remove()}
+  requestAnimationFrame(()=>{s.el.scrollTop=s.el.scrollHeight});
+}
+
+function prevSetInterim(slotId, text, speaker){
+  const s=prevSlots[slotId]; if(!s)return;
+  if(text){
+    s.interimEl.textContent='';
+    if(speaker && speaker!==s.lastSpeaker){
+      const tag=document.createElement('span');tag.className='sp-tag';
+      tag.textContent=speaker+': ';s.interimEl.appendChild(tag);
+    }
+    s.interimEl.appendChild(document.createTextNode(text));
+    s.interimEl.style.display='block';
+  } else {
+    s.interimEl.style.display='none';s.interimEl.textContent='';
+  }
+  requestAnimationFrame(()=>{s.el.scrollTop=s.el.scrollHeight});
+}
+
+function prevCorrectLine(slotId, lineId, newText){
+  const s=prevSlots[slotId]; if(!s)return;
+  for(let i=s.lines.length-1;i>=0;i--){
+    if(s.lines[i].dataset.lineId==lineId){
+      const el=s.lines[i];
+      if(el._textNode) el._textNode.textContent=newText;
+      el._originalText=newText;
+      el.classList.add('corrected');
+      // Update the right-click handler with new text
+      if(slotId==='caption'){
+        el.oncontextmenu=e=>{e.preventDefault();openEditDialog(lineId, newText, el)};
+      }
+      return;
+    }
+  }
+}
+
+function prevClearAll(){
+  Object.values(prevSlots).forEach(s=>{
+    s.lines.forEach(l=>l.remove());s.lines=[];
+    s.interimEl.style.display='none';s.interimEl.textContent='';
+    s.lastSpeaker=null;
+  });
+}
+
+// ── Edit Dialog ──
+function openEditDialog(lineId, currentText, lineEl){
+  // Remove any existing dialog
+  closeEditDialog();
+  const overlay=document.createElement('div');overlay.className='edit-overlay';overlay.id='editOverlay';
+  overlay.onclick=e=>{if(e.target===overlay)closeEditDialog()};
+  const dlg=document.createElement('div');dlg.className='edit-dialog';
+  // Position near the line
+  const rect=lineEl.getBoundingClientRect();
+  dlg.style.left=Math.min(rect.left, window.innerWidth-440)+'px';
+  dlg.style.top=Math.min(rect.bottom+4, window.innerHeight-200)+'px';
+  dlg.innerHTML=`
+    <h4>Correct Caption</h4>
+    <div class="edit-original">Original: ${esc(currentText)}</div>
+    <textarea id="editText">${esc(currentText)}</textarea>
+    <div class="edit-btns">
+      <button class="btn btn-g" onclick="closeEditDialog()">Cancel</button>
+      <button class="btn btn-p" onclick="submitCorrection(${lineId})">Save &amp; Re-translate</button>
+    </div>`;
+  overlay.appendChild(dlg);document.body.appendChild(overlay);
+  const ta=document.getElementById('editText');
+  ta.focus();ta.setSelectionRange(0,ta.value.length);
+  ta.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submitCorrection(lineId)}
+    if(e.key==='Escape')closeEditDialog();
+  });
+}
+
+function closeEditDialog(){
+  const ov=document.getElementById('editOverlay');
+  if(ov)ov.remove();
+}
+
+function submitCorrection(lineId){
+  const ta=document.getElementById('editText');
+  if(!ta)return;
+  const newText=ta.value.trim();
+  if(!newText){closeEditDialog();return}
+  if(ws&&ws.readyState===1){
+    ws.send(JSON.stringify({type:'correct_caption', line_id:lineId, text:newText}));
+  }
+  closeEditDialog();
 }
 
 // ── WebSocket ──
@@ -558,20 +1090,28 @@ function connect(){
       else if(m.state==='silence')document.getElementById('sTxt').textContent='Connected — listening';
     }
     else if(m.type==='interim'){
-      const el=document.getElementById('pCaption');
-      if(el&&m.text)el.innerHTML=`<span class="prev-interim">${esc(m.text)}</span>`;
+      prevSetInterim('caption', m.text||'', m.speaker||'');
     }
     else if(m.type==='final'){
-      const el=document.getElementById('pCaption');
-      if(el&&m.text)el.textContent=m.text;
+      prevSetInterim('caption','');
+      if(m.text) prevAddLine('caption', m.text, m.speaker||'', m.line_id);
+      document.getElementById('pSpeaker').textContent=m.speaker||'';
     }
     else if(m.type==='interim_translation'){
-      if(m.slot!==undefined){const el=document.getElementById('pTrans'+m.slot);
-        if(el&&m.translated)el.innerHTML=`<span class="prev-interim">${esc(m.translated)}</span>`}
+      if(m.slot!==undefined) prevSetInterim('trans_'+m.slot, m.translated||'', m.speaker||'');
     }
     else if(m.type==='final_translation'){
-      if(m.slot!==undefined){const el=document.getElementById('pTrans'+m.slot);
-        if(el&&m.translated)el.textContent=m.translated}
+      if(m.slot!==undefined){
+        prevSetInterim('trans_'+m.slot,'');
+        if(m.translated) prevAddLine('trans_'+m.slot, m.translated, m.speaker||'', m.line_id);
+      }
+    }
+    else if(m.type==='correct_line'){
+      if(m.line_id!==undefined&&m.text) prevCorrectLine('caption', m.line_id, m.text);
+    }
+    else if(m.type==='correct_translation'){
+      if(m.line_id!==undefined&&m.slot!==undefined&&m.translated)
+        prevCorrectLine('trans_'+m.slot, m.line_id, m.translated);
     }
     else if(m.type==='config_update'){
       document.getElementById('pTitle').textContent=m.session_title||'Live Captioning';
@@ -579,8 +1119,11 @@ function connect(){
     else if(m.type==='translation_paused'){
       translationPaused=m.paused;
       const btn=document.getElementById('pauseBtn');
-      if(translationPaused){btn.textContent='▶ Resume Translation (uses API credits)';btn.style.background='rgba(255,255,255,.08)';btn.style.color='rgba(255,255,255,.35)';btn.style.borderColor='rgba(255,255,255,.1)'}
-      else{btn.textContent='⏸ Pause Translation';btn.style.background='#FF9800';btn.style.color='#000';btn.style.borderColor='#FF9800'}
+      if(translationPaused){
+        const allOffline=translations.slice(0,transCount).every(t=>(t.mode||'deepl').startsWith('offline'));
+        btn.textContent=allOffline?'\u25b6 Resume Translation (offline \u2014 no credits used)':'\u25b6 Resume Translation (uses API credits)';
+        btn.style.background='rgba(255,255,255,.08)';btn.style.color='rgba(255,255,255,.55)';btn.style.borderColor='rgba(255,255,255,.1)';
+      } else{btn.textContent='\u23f8 Pause Translation';btn.style.background='#FF9800';btn.style.color='#000';btn.style.borderColor='#FF9800'}
       updateSessionHint();
     }
     else if(m.type==='captioning_paused'){
@@ -593,6 +1136,9 @@ function connect(){
     else if(m.type==='save_transcripts'){
       saveTranscriptsEnabled=m.enabled;
       updateSaveToggleUI();
+    }
+    else if(m.type==='clear_captions'){
+      prevClearAll();
     }
   };
   ws.onclose=()=>{

@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#0f0f1a;--surface:#16162a;--border:rgba(255,255,255,.08);--text:#e0e0e0;--dim:rgba(255,255,255,.35);--accent:#4FC3F7}
+:root{--bg:#0f0f1a;--surface:#16162a;--border:rgba(255,255,255,.08);--text:#e0e0e0;--dim:rgba(255,255,255,.45);--accent:#4FC3F7}
 html,body{height:100%;background:var(--bg);font-family:'Inter',sans-serif;color:var(--text)}
 body{display:flex;flex-direction:column}
 
@@ -32,18 +32,19 @@ body{display:flex;flex-direction:column}
 .btn-go.active:hover{background:#EF5350}
 .wordcount{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
 
-.editor{flex:1;overflow-y:auto;padding:24px 32px;line-height:1.8;font-size:16px;max-width:900px;width:100%;margin:0 auto}
-.editor .final{color:var(--text)}
-.editor .interim{color:var(--dim);font-style:italic}
-.editor .cursor{display:inline-block;width:2px;height:1.1em;background:var(--accent);vertical-align:text-bottom;animation:blink 1s step-end infinite;margin-left:2px}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
-
 .settings-row{display:flex;align-items:center;gap:8px;padding:6px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;font-size:11px}
 .settings-row label{color:var(--dim);font-weight:600;white-space:nowrap}
 .settings-row input[type="text"]{flex:1;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:rgba(255,255,255,.05);color:var(--text);font-family:inherit;font-size:11px}
 .settings-row input[type="text"]:focus{outline:none;border-color:var(--accent)}
-.settings-row .path-hint{color:var(--dim);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.empty-state{color:var(--dim);font-size:14px;font-style:italic;padding:40px 0;text-align:center}
+
+.interim-bar{display:flex;align-items:center;gap:6px;padding:6px 16px;border-bottom:1px solid var(--border);background:rgba(79,195,247,.04);flex-shrink:0;min-height:0;overflow:hidden}
+.interim-bar .interim-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);flex-shrink:0}
+.interim-bar .interim-text{font-size:12px;color:rgba(255,255,255,.5);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.editor-wrap{flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
+.editor{flex:1;width:100%;padding:24px 32px;border:none;outline:none;resize:none;background:transparent;color:var(--text);font-family:'Inter',sans-serif;font-size:16px;line-height:1.8;max-width:900px;margin:0 auto;box-sizing:border-box}
+.editor::placeholder{color:rgba(255,255,255,.25);font-style:italic}
+.insert-hint{position:absolute;bottom:8px;right:16px;font-size:10px;color:var(--dim);pointer-events:none;transition:opacity .2s}
 </style>
 </head>
 <body>
@@ -64,67 +65,114 @@ body{display:flex;flex-direction:column}
   <button class="btn" onclick="updateDir()" style="padding:4px 10px;font-size:10px">Set</button>
 </div>
 
-<div class="editor" id="editor">
-  <div class="empty-state" id="emptyState">Click <strong>Start</strong> then speak — text will appear here.</div>
+<div class="interim-bar" id="interimBar" style="display:none">
+  <span class="interim-label">Hearing:</span>
+  <span class="interim-text" id="interimText"></span>
+</div>
+
+<div class="editor-wrap">
+  <textarea class="editor" id="editor" spellcheck="true"
+    placeholder="Click Start then speak — text will appear here.&#10;&#10;You can click anywhere to position your cursor.&#10;New speech will be inserted at the cursor position.&#10;You can freely edit, select, and type in this area."></textarea>
+  <div class="insert-hint" id="insertHint" style="opacity:0">Insert at cursor</div>
 </div>
 
 <script>
 let ws = null, recon = 0;
-let fullText = '';  // accumulated final text
 let interimText = '';
 let transcribing = false;
 
 const editor = document.getElementById('editor');
-const emptyState = document.getElementById('emptyState');
+const interimBar = document.getElementById('interimBar');
+const interimTextEl = document.getElementById('interimText');
 const dot = document.getElementById('dot');
 const statusEl = document.getElementById('status');
 const wordcountEl = document.getElementById('wordcount');
+const insertHint = document.getElementById('insertHint');
 
-function render() {
-  if (!fullText && !interimText) {
-    emptyState.style.display = 'block';
-    // Remove any text nodes
-    editor.querySelectorAll('.final,.interim,.cursor').forEach(e => e.remove());
-    return;
-  }
-  emptyState.style.display = 'none';
+// Track whether cursor is at end (for insert-at-cursor hint)
+function isCursorAtEnd() {
+  return editor.selectionStart === editor.value.length &&
+         editor.selectionEnd === editor.value.length;
+}
 
-  let html = '';
-  if (fullText) {
-    html += '<span class="final">' + esc(fullText) + '</span>';
+function updateInsertHint() {
+  if (editor.value.length > 0 && !isCursorAtEnd() &&
+      document.activeElement === editor && transcribing) {
+    insertHint.style.opacity = '1';
+    insertHint.textContent = 'Inserting at cursor (position ' + editor.selectionStart + ')';
+  } else {
+    insertHint.style.opacity = '0';
   }
-  if (interimText) {
-    html += '<span class="interim">' + esc(interimText) + '</span>';
-  }
-  html += '<span class="cursor"></span>';
-  editor.innerHTML = html;
+}
 
-  // Auto-scroll to bottom
+editor.addEventListener('click', updateInsertHint);
+editor.addEventListener('keyup', updateInsertHint);
+editor.addEventListener('focus', updateInsertHint);
+editor.addEventListener('blur', () => { insertHint.style.opacity = '0'; });
+
+function insertTextAtCursor(text) {
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const val = editor.value;
+
+  // Determine if we need a space before the inserted text
+  let prefix = '';
+  if (start > 0 && val.length > 0) {
+    const before = val[start - 1];
+    if (before !== '\n' && before !== ' ' && before !== '\t') {
+      prefix = ' ';
+    }
+  }
+
+  const insert = prefix + text;
+  // Use execCommand for undo support where available, fall back to direct manipulation
+  editor.focus();
+  editor.setSelectionRange(start, end);
+  if (!document.execCommand('insertText', false, insert)) {
+    // Fallback
+    editor.value = val.slice(0, start) + insert + val.slice(end);
+  }
+  const newPos = start + insert.length;
+  editor.setSelectionRange(newPos, newPos);
   editor.scrollTop = editor.scrollHeight;
+  updateWordCount();
+  updateInsertHint();
+}
+
+function appendText(text) {
+  const val = editor.value;
+  let prefix = '';
+  if (val.length > 0 && !val.endsWith('\n') && !val.endsWith(' ')) {
+    prefix = ' ';
+  }
+  editor.value += prefix + text;
+  editor.scrollTop = editor.scrollHeight;
+  // Place cursor at end
+  const len = editor.value.length;
+  editor.setSelectionRange(len, len);
+  updateWordCount();
 }
 
 function updateWordCount() {
-  const text = fullText.trim();
+  const text = editor.value.trim();
   const count = text ? text.split(/\s+/).length : 0;
   wordcountEl.textContent = count + (count === 1 ? ' word' : ' words');
 }
 
-function esc(t) {
-  const d = document.createElement('div');
-  d.textContent = t;
-  return d.innerHTML;
-}
+// Listen for manual edits too
+editor.addEventListener('input', updateWordCount);
 
 function copyAll() {
-  if (!fullText.trim()) return;
-  navigator.clipboard.writeText(fullText.trim()).then(() => {
+  const text = editor.value.trim();
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
     statusEl.textContent = 'Copied!';
-    setTimeout(() => { statusEl.textContent = 'Listening...'; }, 1500);
+    setTimeout(() => { statusEl.textContent = transcribing ? 'Listening...' : 'Stopped'; }, 1500);
   });
 }
 
 function saveFile() {
-  const text = fullText.trim();
+  const text = editor.value.trim();
   if (!text) return;
   const fd = new FormData();
   fd.append('text', text);
@@ -166,18 +214,20 @@ function updateDir() {
 }
 
 function clearAll() {
-  fullText = '';
+  editor.value = '';
   interimText = '';
-  render();
+  interimBar.style.display = 'none';
   updateWordCount();
+  updateInsertHint();
 }
 
 function toggleTranscribing() {
   transcribing = !transcribing;
   if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'set_captioning_paused', paused: !transcribing }));
+    ws.send(JSON.stringify({ type: 'set_dictation_active', active: transcribing }));
   }
   updateGoBtn();
+  updateInsertHint();
 }
 
 function updateGoBtn() {
@@ -194,8 +244,8 @@ function updateGoBtn() {
 function handleMsg(msg) {
   switch (msg.type) {
     case 'status':
-      if (msg.captioning_paused !== undefined) {
-        transcribing = !msg.captioning_paused;
+      if (msg.dictation_active !== undefined) {
+        transcribing = msg.dictation_active;
         updateGoBtn();
         if (!transcribing) { statusEl.textContent = 'Stopped'; break; }
       }
@@ -209,34 +259,41 @@ function handleMsg(msg) {
       break;
     case 'interim':
       interimText = msg.text || '';
-      render();
+      if (interimText) {
+        interimTextEl.textContent = interimText;
+        interimBar.style.display = 'flex';
+      } else {
+        interimBar.style.display = 'none';
+      }
       break;
     case 'final':
       if (msg.text) {
-        // Add space between segments, or start fresh
-        if (fullText && !fullText.endsWith('\n')) {
-          fullText += ' ';
+        // Insert at cursor if user has positioned it mid-text, else append
+        if (document.activeElement === editor && !isCursorAtEnd()) {
+          insertTextAtCursor(msg.text);
+        } else {
+          appendText(msg.text);
         }
-        fullText += msg.text;
-        updateWordCount();
       }
       interimText = '';
-      render();
+      interimBar.style.display = 'none';
       break;
-    case 'captioning_paused':
-      transcribing = !msg.paused;
+    case 'dictation_active':
+      transcribing = msg.active;
       updateGoBtn();
-      if (msg.paused) {
+      if (!msg.active) {
         statusEl.textContent = 'Stopped';
         dot.className = 'dot';
+        interimBar.style.display = 'none';
       } else {
         statusEl.textContent = 'Listening...';
         dot.className = 'dot conn';
       }
+      updateInsertHint();
       break;
+    case 'captioning_paused':
     case 'clear_captions':
-      // Don't clear dictation when operator clears captions
-      break;
+      break; // Ignore — dictation is independent
   }
 }
 

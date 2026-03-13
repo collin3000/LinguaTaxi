@@ -84,10 +84,11 @@ function buildSections(c){
   });
 }
 
-function addFinalLine(slotId, text, speaker){
+function addFinalLine(slotId, text, speaker, lineId){
   const s=slots[slotId]; if(!s)return;
   const line=document.createElement('div');
   line.className='line';line.style.color=s.color;
+  if(lineId!==undefined) line.dataset.lineId=lineId;
   // Insert speaker label when speaker changes from last finalized line
   if(speaker && speaker !== s.lastSpeaker){
     const tag=document.createElement('span');
@@ -99,12 +100,33 @@ function addFinalLine(slotId, text, speaker){
   } else if(!speaker && s.lastSpeaker){
     s.lastSpeaker=null;
   }
-  line.appendChild(document.createTextNode(text));
+  const txt=document.createTextNode(text);
+  line.appendChild(txt);
+  line._textNode=txt; // keep reference for corrections
   s.inner.insertBefore(line, s.interimEl);
   s.interimEl.style.display='none';s.interimEl.innerHTML='';
   s.lines.push(line);
   while(s.lines.length>200){s.lines.shift().remove()}
   requestAnimationFrame(()=>{s.scrollBox.scrollTop=s.scrollBox.scrollHeight});
+}
+
+function correctLine(slotId, lineId, newText){
+  const s=slots[slotId]; if(!s)return;
+  for(let i=s.lines.length-1;i>=0;i--){
+    if(s.lines[i].dataset.lineId==lineId){
+      const el=s.lines[i];
+      if(el._textNode) el._textNode.textContent=newText;
+      else{
+        // Fallback: rebuild keeping speaker tag
+        const tag=el.querySelector('.speaker-tag');
+        el.textContent='';
+        if(tag) el.appendChild(tag);
+        const txt=document.createTextNode(newText);
+        el.appendChild(txt);el._textNode=txt;
+      }
+      return;
+    }
+  }
 }
 
 function setInterim(slotId, text, speaker){
@@ -163,7 +185,7 @@ function handleMsg(msg){
       break;
     case 'final':
       setInterim('caption','');
-      if(msg.text) addFinalLine('caption', msg.text, msg.speaker||'');
+      if(msg.text) addFinalLine('caption', msg.text, msg.speaker||'', msg.line_id);
       break;
     case 'interim_translation':
       if(msg.slot!==undefined){
@@ -176,8 +198,15 @@ function handleMsg(msg){
       if(msg.slot!==undefined){
         const k=slotKey(msg.slot);
         setInterim(k,'');
-        if(msg.translated)addFinalLine(k, msg.translated, msg.speaker||'');
+        if(msg.translated)addFinalLine(k, msg.translated, msg.speaker||'', msg.line_id);
       }
+      break;
+    case 'correct_line':
+      if(msg.line_id!==undefined&&msg.text) correctLine('caption', msg.line_id, msg.text);
+      break;
+    case 'correct_translation':
+      if(msg.line_id!==undefined&&msg.slot!==undefined&&msg.translated)
+        correctLine(slotKey(msg.slot), msg.line_id, msg.translated);
       break;
     case 'speaker_change':
       // Speaker labels appear inline in the scroll — no separate header needed.

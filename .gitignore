@@ -19,6 +19,7 @@ build/windows/venv_lite/
 build/windows/venv_full/
 build/windows/build_log.txt
 build/windows/python_installer.exe
+build/windows/models_prebuilt/
 
 # OS
 .DS_Store
