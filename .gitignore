@@ -28,3 +28,10 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Claude / planning
+.claude/
+CLAUDE.md
+MIGRATION_PLAN.md
+build/windows/CLAUDE.md
+build/cuda_wheels/
