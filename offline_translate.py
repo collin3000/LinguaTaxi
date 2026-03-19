@@ -28,6 +28,18 @@ log = logging.getLogger("livecaption")
 # CLI mode flag — when True, _set_progress also prints machine-parseable lines
 _cli_mode = False
 
+
+def _short_hf_cache():
+    """Return a short temp path for HuggingFace downloads.
+    Windows MAX_PATH (260 chars) breaks with long HF cache paths like
+    C:\\Users\\...\\Temp\\linguataxi_hf_XXXX\\models--Helsinki-NLP--opus-mt-en-es\\snapshots\\<hash>\\...
+    Using C:\\tmp\\lt_hf keeps total paths well under the limit."""
+    if sys.platform == "win32":
+        d = Path("C:/tmp/lt_hf")
+        d.mkdir(parents=True, exist_ok=True)
+        return str(d)
+    return tempfile.mkdtemp(prefix="lt_hf_")
+
 # ── OPUS-MT Model Registry ──
 # Maps DeepL target lang code → HuggingFace repo and metadata
 # Only includes pairs where OPUS-MT has good quality (European + common)
@@ -253,8 +265,8 @@ def download_opus_model(models_dir, lang_code, on_complete=None):
 
             from huggingface_hub import snapshot_download
 
-            # Use temp dir for HF cache (avoids permission issues in Program Files)
-            hf_cache = tempfile.mkdtemp(prefix="linguataxi_hf_")
+            # Use short cache path to avoid Windows MAX_PATH (260 char) errors
+            hf_cache = _short_hf_cache()
 
             hf_local = snapshot_download(
                 repo_id=info["hf_repo"],
@@ -334,8 +346,8 @@ def download_m2m_model(models_dir, on_complete=None):
 
             from huggingface_hub import snapshot_download
 
-            # Use temp dir for HF cache (avoids permission issues in Program Files)
-            hf_cache = tempfile.mkdtemp(prefix="linguataxi_hf_")
+            # Use short cache path to avoid Windows MAX_PATH (260 char) errors
+            hf_cache = _short_hf_cache()
 
             hf_local = snapshot_download(
                 repo_id=M2M_MODEL["hf_repo"],

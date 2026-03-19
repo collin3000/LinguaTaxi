@@ -344,12 +344,16 @@ class LinguaTaxiApp(tk.Tk):
         log_frame = ttk.LabelFrame(main, text="  Server Log  ", padding=(8, 6))
         log_frame.pack(fill="both", expand=True, pady=(0, 8))
 
+        log_scroll = ttk.Scrollbar(log_frame, orient="vertical")
         self.log_text = tk.Text(log_frame, height=8, wrap="word",
                                  bg="#0a0a1a", fg="#7fdbca", insertbackground="#7fdbca",
                                  font=("Consolas" if IS_WIN else "Menlo", 10),
                                  relief="flat", padx=8, pady=6,
-                                 state="disabled")
-        self.log_text.pack(fill="both", expand=True)
+                                 state="disabled",
+                                 yscrollcommand=log_scroll.set)
+        log_scroll.configure(command=self.log_text.yview)
+        log_scroll.pack(side="right", fill="y")
+        self.log_text.pack(side="left", fill="both", expand=True)
 
         # Configure log colors
         self.log_text.tag_configure("info", foreground="#7fdbca")
@@ -485,7 +489,7 @@ class LinguaTaxiApp(tk.Tk):
         """Show a progress dialog while downloading speech models."""
         dlg = tk.Toplevel(self)
         dlg.title("First-Time Setup")
-        dlg.geometry("480x200")
+        dlg.geometry("480x220")
         dlg.resizable(False, False)
         dlg.configure(bg=self.BG)
         dlg.transient(self)
@@ -494,7 +498,7 @@ class LinguaTaxiApp(tk.Tk):
         # Center on parent
         dlg.update_idletasks()
         px = self.winfo_x() + (self.winfo_width() - 480) // 2
-        py = self.winfo_y() + (self.winfo_height() - 200) // 2
+        py = self.winfo_y() + (self.winfo_height() - 220) // 2
         dlg.geometry(f"+{px}+{py}")
 
         f = ttk.Frame(dlg, padding=24)
@@ -601,8 +605,9 @@ class LinguaTaxiApp(tk.Tk):
 
         dlg = tk.Toplevel(self)
         dlg.title("Download Language-Tuned Models")
-        dlg.geometry("520x460")
-        dlg.resizable(False, False)
+        dlg.geometry("520x480")
+        dlg.minsize(400, 300)
+        dlg.resizable(True, True)
         dlg.configure(bg=self.BG)
         dlg.transient(self)
         dlg.grab_set()
@@ -610,7 +615,7 @@ class LinguaTaxiApp(tk.Tk):
         # Center on parent
         dlg.update_idletasks()
         px = self.winfo_x() + (self.winfo_width() - 520) // 2
-        py = self.winfo_y() + (self.winfo_height() - 460) // 2
+        py = self.winfo_y() + (self.winfo_height() - 480) // 2
         dlg.geometry(f"+{px}+{py}")
 
         f = ttk.Frame(dlg, padding=20)
@@ -640,9 +645,28 @@ class LinguaTaxiApp(tk.Tk):
                 "ZH": {"name": "Chinese", "size_gb": 3.1, "available": False},
             }
 
-        # Checkboxes
-        cb_frame = ttk.Frame(f)
-        cb_frame.pack(fill="x", pady=(0, 12))
+        # Scrollable checkbox area
+        cb_canvas = tk.Canvas(f, bg=self.BG, highlightthickness=0)
+        cb_scrollbar = ttk.Scrollbar(f, orient="vertical", command=cb_canvas.yview)
+        cb_frame = ttk.Frame(cb_canvas)
+        cb_frame.bind("<Configure>",
+                      lambda e: cb_canvas.configure(scrollregion=cb_canvas.bbox("all")))
+        cb_canvas.create_window((0, 0), window=cb_frame, anchor="nw",
+                                tags="inner")
+        cb_canvas.configure(yscrollcommand=cb_scrollbar.set)
+
+        # Resize inner frame width when canvas resizes
+        def _resize_cb(event):
+            cb_canvas.itemconfig("inner", width=event.width)
+        cb_canvas.bind("<Configure>", _resize_cb)
+
+        cb_canvas.pack(side="top", fill="both", expand=True, pady=(0, 8))
+        cb_scrollbar.pack(in_=f, side="right", fill="y", before=cb_canvas)
+
+        def _cb_mousewheel(event):
+            cb_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        cb_canvas.bind_all("<MouseWheel>", _cb_mousewheel)
+        dlg.bind("<Destroy>", lambda e: cb_canvas.unbind_all("<MouseWheel>") if e.widget == dlg else None)
 
         check_vars = {}
         cb_widgets = {}
@@ -655,24 +679,23 @@ class LinguaTaxiApp(tk.Tk):
             avail = info.get("available", False)
 
             if avail:
-                # Clear "installed" indicator instead of greyed-out checkbox
                 row = ttk.Frame(cb_frame)
                 row.pack(anchor="w", pady=2, fill="x")
-                tk.Label(row, text=" ✓ ", fg="#66BB6A", bg=self.BG,
+                tk.Label(row, text=" \u2713 ", fg="#66BB6A", bg=self.BG,
                          font=("Segoe UI", 10, "bold")).pack(side="left")
-                tk.Label(row, text=f"{name} — ~{size} GB  ",
+                tk.Label(row, text=f"{name} \u2014 ~{size} GB  ",
                          fg=self.FG, bg=self.BG,
                          font=("Segoe UI", 9)).pack(side="left")
                 tk.Label(row, text="Installed", fg="#66BB6A", bg=self.BG,
                          font=("Segoe UI", 9, "bold")).pack(side="left")
                 cb_widgets[lang] = None
             else:
-                text = f"{name} — ~{size} GB"
+                text = f"{name} \u2014 ~{size} GB"
                 cb = ttk.Checkbutton(cb_frame, text=text, variable=var)
                 cb.pack(anchor="w", pady=2)
                 cb_widgets[lang] = cb
 
-        # Buttons
+        # Buttons (fixed at bottom)
         btn_frame = ttk.Frame(f)
         btn_frame.pack(fill="x", pady=(0, 8))
 
@@ -685,11 +708,11 @@ class LinguaTaxiApp(tk.Tk):
                                command=dlg.destroy)
         close_btn.pack(side="right")
 
-        # Progress area
+        # Progress area (fixed at bottom)
         prog_frame = ttk.Frame(f)
         prog_frame.pack(fill="x", pady=(8, 0))
 
-        progress_bar = ttk.Progressbar(prog_frame, mode="determinate", length=460)
+        progress_bar = ttk.Progressbar(prog_frame, mode="determinate")
         progress_bar.pack_forget()
 
         status_var = tk.StringVar(value="Select languages and click Download.")
@@ -870,15 +893,16 @@ class LinguaTaxiApp(tk.Tk):
 
         dlg = tk.Toplevel(self)
         dlg.title("Download Offline Translation Models")
-        dlg.geometry("560x560")
-        dlg.resizable(False, False)
+        dlg.geometry("560x580")
+        dlg.minsize(440, 350)
+        dlg.resizable(True, True)
         dlg.configure(bg=self.BG)
         dlg.transient(self)
         dlg.grab_set()
 
         dlg.update_idletasks()
         px = self.winfo_x() + (self.winfo_width() - 560) // 2
-        py = self.winfo_y() + (self.winfo_height() - 560) // 2
+        py = self.winfo_y() + (self.winfo_height() - 580) // 2
         dlg.geometry(f"+{px}+{py}")
 
         f = ttk.Frame(dlg, padding=20)
@@ -912,16 +936,36 @@ class LinguaTaxiApp(tk.Tk):
         if not m2m_info:
             m2m_info = {"name": "M2M-100 Multilingual", "size_mb": 4800, "available": False}
 
+        # Scrollable model list area
+        ol_canvas = tk.Canvas(f, bg=self.BG, highlightthickness=0)
+        ol_scrollbar = ttk.Scrollbar(f, orient="vertical", command=ol_canvas.yview)
+        ol_inner = ttk.Frame(ol_canvas)
+        ol_inner.bind("<Configure>",
+                      lambda e: ol_canvas.configure(scrollregion=ol_canvas.bbox("all")))
+        ol_canvas.create_window((0, 0), window=ol_inner, anchor="nw", tags="inner")
+        ol_canvas.configure(yscrollcommand=ol_scrollbar.set)
+
+        def _resize_ol(event):
+            ol_canvas.itemconfig("inner", width=event.width)
+        ol_canvas.bind("<Configure>", _resize_ol)
+
+        ol_canvas.pack(side="top", fill="both", expand=True, pady=(0, 8))
+        ol_scrollbar.pack(in_=f, side="right", fill="y", before=ol_canvas)
+
+        def _ol_mousewheel(event):
+            ol_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        ol_canvas.bind_all("<MouseWheel>", _ol_mousewheel)
+        dlg.bind("<Destroy>", lambda e: ol_canvas.unbind_all("<MouseWheel>") if e.widget == dlg else None)
+
         # OPUS-MT section
-        ttk.Label(f, text="OPUS-MT (per-language, fast):",
+        ttk.Label(ol_inner, text="OPUS-MT (per-language, fast):",
                   style="Section.TLabel").pack(anchor="w", pady=(4, 2))
 
-        opus_frame = ttk.Frame(f)
+        opus_frame = ttk.Frame(ol_inner)
         opus_frame.pack(fill="x", pady=(0, 8))
 
         opus_vars = {}
         opus_cbs = {}
-        # Show a subset of popular languages
         popular = ["ES", "FR", "DE", "IT", "RU", "PL", "NL", "SV", "TR", "UK"]
         for lang in popular:
             info = opus_models.get(lang)
@@ -936,25 +980,25 @@ class LinguaTaxiApp(tk.Tk):
             if avail:
                 row = ttk.Frame(opus_frame)
                 row.pack(anchor="w", pady=1, fill="x")
-                tk.Label(row, text=" ✓ ", fg="#66BB6A", bg=self.BG,
+                tk.Label(row, text=" \u2713 ", fg="#66BB6A", bg=self.BG,
                          font=("Segoe UI", 9, "bold")).pack(side="left")
-                tk.Label(row, text=f"{name} ({lang}) — ~{size} MB download  ",
+                tk.Label(row, text=f"{name} ({lang}) \u2014 ~{size} MB download  ",
                          fg=self.FG, bg=self.BG,
                          font=("Segoe UI", 9)).pack(side="left")
                 tk.Label(row, text="Installed", fg="#66BB6A", bg=self.BG,
                          font=("Segoe UI", 9, "bold")).pack(side="left")
                 opus_cbs[lang] = None
             else:
-                text = f"{name} ({lang}) — ~{size} MB download"
+                text = f"{name} ({lang}) \u2014 ~{size} MB download"
                 cb = ttk.Checkbutton(opus_frame, text=text, variable=var)
                 cb.pack(anchor="w", pady=1)
                 opus_cbs[lang] = cb
 
         # M2M-100 section
-        ttk.Label(f, text="M2M-100 (all languages, larger):",
+        ttk.Label(ol_inner, text="M2M-100 (all languages, larger):",
                   style="Section.TLabel").pack(anchor="w", pady=(8, 2))
 
-        m2m_frame = ttk.Frame(f)
+        m2m_frame = ttk.Frame(ol_inner)
         m2m_frame.pack(fill="x", pady=(0, 8))
 
         m2m_var = tk.BooleanVar(value=False)
@@ -966,19 +1010,19 @@ class LinguaTaxiApp(tk.Tk):
         if m2m_avail:
             row = ttk.Frame(m2m_frame)
             row.pack(anchor="w", fill="x")
-            tk.Label(row, text=" ✓ ", fg="#66BB6A", bg=self.BG,
+            tk.Label(row, text=" \u2713 ", fg="#66BB6A", bg=self.BG,
                      font=("Segoe UI", 9, "bold")).pack(side="left")
-            tk.Label(row, text=f"{m2m_name} — ~{m2m_size_str}  ",
+            tk.Label(row, text=f"{m2m_name} \u2014 ~{m2m_size_str}  ",
                      fg=self.FG, bg=self.BG,
                      font=("Segoe UI", 9)).pack(side="left")
             tk.Label(row, text="Installed", fg="#66BB6A", bg=self.BG,
                      font=("Segoe UI", 9, "bold")).pack(side="left")
         else:
-            m2m_text = f"{m2m_name} — ~{m2m_size_str} download (covers Arabic, Japanese, Chinese, Korean, etc.)"
+            m2m_text = f"{m2m_name} \u2014 ~{m2m_size_str} download (covers Arabic, Japanese, Chinese, Korean, etc.)"
             m2m_cb = ttk.Checkbutton(m2m_frame, text=m2m_text, variable=m2m_var)
             m2m_cb.pack(anchor="w")
 
-        # Buttons
+        # Buttons (fixed at bottom)
         btn_frame = ttk.Frame(f)
         btn_frame.pack(fill="x", pady=(8, 4))
 
@@ -991,11 +1035,11 @@ class LinguaTaxiApp(tk.Tk):
                                command=dlg.destroy)
         close_btn.pack(side="right")
 
-        # Progress
+        # Progress (fixed at bottom)
         prog_frame = ttk.Frame(f)
         prog_frame.pack(fill="x", pady=(8, 0))
 
-        progress_bar = ttk.Progressbar(prog_frame, mode="determinate", length=500)
+        progress_bar = ttk.Progressbar(prog_frame, mode="determinate")
         progress_bar.pack_forget()
 
         status_var = tk.StringVar(value="Select models and click Download.")
@@ -1186,15 +1230,16 @@ class LinguaTaxiApp(tk.Tk):
         """Show dialog to view, update, and delete installed models."""
         dlg = tk.Toplevel(self)
         dlg.title("Manage Installed Models")
-        dlg.geometry("680x600")
-        dlg.resizable(False, True)
+        dlg.geometry("680x620")
+        dlg.minsize(500, 350)
+        dlg.resizable(True, True)
         dlg.configure(bg=self.BG)
         dlg.transient(self)
         dlg.grab_set()
 
         dlg.update_idletasks()
         px = self.winfo_x() + (self.winfo_width() - 680) // 2
-        py = self.winfo_y() + (self.winfo_height() - 600) // 2
+        py = self.winfo_y() + (self.winfo_height() - 620) // 2
         dlg.geometry(f"+{px}+{py}")
 
         f = ttk.Frame(dlg, padding=16)
@@ -1216,8 +1261,13 @@ class LinguaTaxiApp(tk.Tk):
 
         list_frame.bind("<Configure>",
                         lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=list_frame, anchor="nw", width=640)
+        canvas.create_window((0, 0), window=list_frame, anchor="nw", tags="inner")
         canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Resize inner frame width when canvas resizes
+        def _resize_mgr(event):
+            canvas.itemconfig("inner", width=event.width)
+        canvas.bind("<Configure>", _resize_mgr)
 
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")

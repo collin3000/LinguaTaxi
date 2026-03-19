@@ -26,6 +26,16 @@ log = logging.getLogger("livecaption")
 # CLI mode flag — when True, _set_progress also prints machine-parseable lines
 _cli_mode = False
 
+
+def _short_hf_cache():
+    """Return a short temp path for HuggingFace downloads.
+    Windows MAX_PATH (260 chars) breaks with long HF cache paths."""
+    if sys.platform == "win32":
+        d = Path("C:/tmp/lt_hf")
+        d.mkdir(parents=True, exist_ok=True)
+        return str(d)
+    return tempfile.mkdtemp(prefix="lt_hf_")
+
 # Only download files needed for CTranslate2 conversion (skip training checkpoints,
 # optimizer states, TF/Flax weights, etc. — some repos have 30+ GB of extras)
 _HF_ALLOW = [
@@ -246,8 +256,8 @@ def download_and_convert(models_dir, lang_code, vram_mb=0, on_complete=None):
 
             from huggingface_hub import snapshot_download
 
-            # Use temp dir for HF cache (avoids permission issues in Program Files)
-            hf_cache_dir = tempfile.mkdtemp(prefix="linguataxi_hf_")
+            # Use short cache path to avoid Windows MAX_PATH (260 char) errors
+            hf_cache_dir = _short_hf_cache()
 
             hf_local = snapshot_download(
                 repo_id=info["hf_repo"],
