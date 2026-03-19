@@ -173,7 +173,7 @@ echo   Installing model conversion tools (transformers + torch-cpu)...
 
 echo   [NOTE] NVIDIA CUDA libraries are NOT bundled in the venv.
 echo          The installer will download them from GitHub during install.
-echo          Source: https://github.com/collin3000/LinguaTaxi-CUDA/releases/tag/v12.9
+echo          Source: https://github.com/TheColliny/LinguaTaxi-CUDA/releases/tag/v12.9
 
 echo   [OK] Full venv ready (faster-whisper + Vosk, CUDA downloaded at install)
 
