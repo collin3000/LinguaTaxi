@@ -1,17 +1,20 @@
-# 🚕 LinguaTaxi — Live Caption & Translation
+# LinguaTaxi
 
-Real-time speech captioning with up to 5 simultaneous translations, powered by Whisper (GPU) and DeepL.
+Highly accurate live speech caption and multi-language translation using CPU (Vosk) or GPU (Whisper) text to speech engines and offline translation or online translation using DeepL API. Perfect for speeches, meetings or events with operator controls and caption + translation of up to 5 languages at once. Also includes dictation mode.
 
 ## Features
 
 - **Live captioning** with speaker identification and inline dialogue labels
 - **Up to 5 simultaneous translations** via DeepL API (parallel threaded)
+- **Offline translation** via OPUS-MT and M2M-100 models (no API key needed)
 - **Three displays**: Main (caption + 2 translations), Extended (3+ overflow), Operator (full controls)
+- **Dictation mode**: Plain voice-to-text editor
 - **Cross-platform**: Windows (NVIDIA CUDA), macOS (Apple Metal), Linux (CPU fallback)
 - **Styling**: 4 backgrounds, 5 fonts (CJK/Arabic), 12 colors, 24-960px, 1-8 visible lines
 - **Scrolling captions** — text flows naturally, old lines scroll up
 - **Transcript saving**: Separate timestamped file per language with speaker labels
 - **Translation & captioning pause**: Configure everything before going live
+- **Language-tuned Whisper models**: Download fine-tuned models for improved accuracy in specific languages
 
 ## Installation
 
@@ -55,4 +58,4 @@ Run `python assets/generate_icons.py` (needs Pillow). On macOS, convert PNG to I
 ## Uninstalling
 
 **Windows**: Start Menu → Uninstall. Checkboxes to keep transcripts and models.
-**macOS**: Trash the app. Optionally delete `~/Library/Application Support/LinguaTaxi/` and `~/Documents/LinguaTaxi Transcripts/`.
+**macOS**: Trash the app. Optionally delete `~/Library/Application Support/LinguaTaxi/` and `~/Documents/LinguaTaxi Transcripts/`
