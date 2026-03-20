@@ -44,7 +44,8 @@ jobs:
           key: models-whisper-v3-turbo-vosk-small
 
       - name: Build installers
-        run: cd build\windows && build.bat
+        working-directory: build/windows
+        run: build.bat
         shell: cmd
         env:
           CI: "true"
