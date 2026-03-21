@@ -876,6 +876,11 @@ async def d_config():
 async def d_ws(ws: WebSocket):
     await ws.accept(); display_clients.add(ws)
     await ws.send_text(json.dumps({"type":"status","state":"connected"}))
+    # Send source list
+    with _sources_lock:
+        source_list = [{"id": s.id, "name": s.name, "speaker": s.speaker,
+                        "color": s.color} for s in _sources]
+    await ws.send_json({"type": "source_list", "sources": source_list})
     try:
         while True: await ws.receive_text()
     except WebSocketDisconnect: display_clients.discard(ws)
@@ -905,6 +910,11 @@ async def e_config():
 async def e_ws(ws: WebSocket):
     await ws.accept(); extended_clients.add(ws)
     await ws.send_text(json.dumps({"type":"status","state":"connected"}))
+    # Send source list
+    with _sources_lock:
+        source_list = [{"id": s.id, "name": s.name, "speaker": s.speaker,
+                        "color": s.color} for s in _sources]
+    await ws.send_json({"type": "source_list", "sources": source_list})
     try:
         while True: await ws.receive_text()
     except WebSocketDisconnect: extended_clients.discard(ws)
@@ -1239,11 +1249,52 @@ async def o_set_mic(request: Request):
     return JSONResponse({"status": "ok", "changed": True,
                          "mic_index": current_mic_index, "mic_name": name})
 
+@operator_app.get("/api/sources")
+async def api_list_sources():
+    """List all active audio sources."""
+    with _sources_lock:
+        return JSONResponse([{
+            "id": s.id, "name": s.name, "speaker": s.speaker,
+            "color": s.color, "device_index": s.device_index
+        } for s in _sources])
+
+@operator_app.post("/api/sources/add")
+async def api_add_source(request: Request):
+    """Add a new audio source at runtime."""
+    data = await request.json()
+    dev_idx = data.get("device_index")
+    name = data.get("name")
+    src = add_source(dev_idx, name)
+    if not src:
+        return JSONResponse({"error": "Maximum 8 sources"}, status_code=400)
+    # Start capture thread
+    t = threading.Thread(target=start_source_capture, args=(src,), daemon=True)
+    t.start()
+    src.capture_thread = t
+    await broadcast_all({"type": "source_added", "source": {
+        "id": src.id, "name": src.name, "speaker": src.speaker, "color": src.color}})
+    return JSONResponse({"id": src.id, "name": src.name})
+
+@operator_app.post("/api/sources/remove")
+async def api_remove_source(request: Request):
+    """Remove an audio source at runtime."""
+    data = await request.json()
+    source_id = data.get("source_id")
+    if remove_source(source_id):
+        await broadcast_all({"type": "source_removed", "source_id": source_id})
+        return JSONResponse({"ok": True})
+    return JSONResponse({"error": "Source not found"}, status_code=404)
+
 @operator_app.websocket("/ws")
 async def o_ws(ws: WebSocket):
     await ws.accept(); operator_clients.add(ws)
     await ws.send_text(json.dumps({"type":"status","state":"connected",
         "model": stt_backend.name if stt_backend else "loading"}))
+    # Send source list
+    with _sources_lock:
+        source_list = [{"id": s.id, "name": s.name, "speaker": s.speaker,
+                        "color": s.color} for s in _sources]
+    await ws.send_json({"type": "source_list", "sources": source_list})
     try:
         while True:
             msg = json.loads(await ws.receive_text())
@@ -1377,9 +1428,14 @@ def setup_events(app, role):
     async def startup():
         if role == "display":
             loop = asyncio.get_event_loop()
+            # Start capture threads for all registered sources
+            with _sources_lock:
+                for src in _sources:
+                    t = threading.Thread(target=start_source_capture, args=(src,), daemon=True)
+                    t.start()
+                    src.capture_thread = t
+            # Start processing (creates per-source buffer threads + shared worker)
             threading.Thread(target=stt_backend.process_audio_loop, args=(loop,), daemon=True).start()
-            mic = getattr(app.state, "mic_index", None)
-            threading.Thread(target=start_audio_capture, args=(mic,), daemon=True).start()
     @app.on_event("shutdown")
     async def shutdown(): shutdown_event.set()
 
@@ -1475,6 +1531,8 @@ def main():
     parser.add_argument("--device", default="cuda", choices=["cuda","cpu","auto"])
     parser.add_argument("--vosk-model", default="auto", choices=["auto","small","large"])
     parser.add_argument("--mic", type=int, default=None)
+    parser.add_argument("--sources", type=str, default=None,
+                        help="Comma-separated device indices (-1 for default)")
     parser.add_argument("--list-mics", action="store_true")
     parser.add_argument("--display-port", type=int, default=3000)
     parser.add_argument("--operator-port", type=int, default=3001)
@@ -1492,6 +1550,17 @@ def main():
         TRANSCRIPTS_DIR = Path(args.transcripts_dir)
     TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
     display_app.state.mic_index = args.mic
+
+    # Create audio sources from --sources or --mic
+    if args.sources:
+        for idx_str in args.sources.split(","):
+            idx = int(idx_str.strip())
+            dev = None if idx == -1 else idx
+            add_source(dev)
+    elif args.mic is not None:
+        add_source(args.mic)
+    else:
+        add_source(None)  # system default
 
     print("\n  +-- Live Caption Server --+\n")
     bc = resolve_backend(args.backend)
