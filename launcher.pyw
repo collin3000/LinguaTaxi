@@ -52,6 +52,8 @@ DEFAULT_SETTINGS = {
     "extended_port": 3002,
     "host": "0.0.0.0",
     "window_geometry": None,
+    "check_for_updates": True,
+    "dismissed_version": None,
 }
 
 
