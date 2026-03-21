@@ -219,6 +219,12 @@ class LinguaTaxiApp(tk.Tk):
         style.configure("TLabelframe.Label", background=self.BG,
                          foreground=self.ACCENT, font=("Segoe UI", 10, "bold"))
 
+        style.configure("Update.TCheckbutton", background=self.BG, foreground=self.FG2,
+                         font=("Segoe UI", 8))
+        style.map("Update.TCheckbutton",
+                   background=[("active", self.BG)],
+                   foreground=[("active", self.FG)])
+
     # ── Build UI ──
 
     def _build_ui(self):
@@ -230,9 +236,29 @@ class LinguaTaxiApp(tk.Tk):
         hdr = ttk.Frame(main)
         hdr.pack(fill="x", pady=(0, 12))
 
-        ttk.Label(hdr, text="🚕  LinguaTaxi", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(hdr, text="Live Caption & Translation",
+        # Left side — title and subtitle
+        hdr_left = ttk.Frame(hdr)
+        hdr_left.pack(side="left", fill="both", expand=True)
+
+        edition_suffix = f" — {EDITION} Edition" if EDITION != "Dev" else ""
+        ttk.Label(hdr_left, text=f"\U0001f695  LinguaTaxi{edition_suffix}",
+                  style="Title.TLabel").pack(anchor="w")
+        ttk.Label(hdr_left, text="Live Caption & Translation",
                   style="Subtitle.TLabel").pack(anchor="w")
+
+        # Right side — update controls
+        hdr_right = ttk.Frame(hdr)
+        hdr_right.pack(side="right", anchor="ne")
+
+        ttk.Button(hdr_right, text="Check for Updates",
+                   command=self._check_for_updates_manual).pack(anchor="e")
+
+        self.update_check_var = tk.BooleanVar(
+            value=self.settings.get("check_for_updates", True))
+        ttk.Checkbutton(hdr_right, text="Check on startup",
+                        variable=self.update_check_var,
+                        style="Update.TCheckbutton",
+                        command=self._on_update_check_toggled).pack(anchor="e", pady=(4, 0))
 
         # ── Server Control ──
         srv_frame = ttk.LabelFrame(main, text="  Server  ", padding=12)
@@ -1849,6 +1875,7 @@ class LinguaTaxiApp(tk.Tk):
         self.settings["mic_index"] = self._get_selected_mic_index()
         self.settings["backend"] = self._backend_from_label.get(self.backend_var.get(), self.backend_var.get())
         self.settings["window_geometry"] = self.geometry()
+        self.settings["check_for_updates"] = self.update_check_var.get()
         save_settings(self.settings)
 
     # ── Logging ──
@@ -1901,6 +1928,17 @@ class LinguaTaxiApp(tk.Tk):
                   style="Subtitle.TLabel").pack()
 
         ttk.Button(f, text="Close", command=about.destroy).pack(pady=(16, 0))
+
+    # ── Update Checking ──
+
+    def _on_update_check_toggled(self):
+        """Save the checkbox state when toggled."""
+        self.settings["check_for_updates"] = self.update_check_var.get()
+        save_settings(self.settings)
+
+    def _check_for_updates_manual(self):
+        """Manual update check triggered by button click."""
+        messagebox.showinfo("Check for Updates", "Not yet implemented.", parent=self)
 
     # ── Cleanup ──
 
