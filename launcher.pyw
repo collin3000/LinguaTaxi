@@ -72,6 +72,7 @@ DEFAULT_SETTINGS = {
     "window_geometry": None,
     "check_for_updates": True,
     "dismissed_version": None,
+    "language": None,
 }
 
 
@@ -100,6 +101,70 @@ def save_settings(cfg):
             json.dump(cfg, f, indent=2)
     except Exception:
         pass
+
+
+# ── Internationalization ──
+
+_strings = {}
+_strings_en = {}
+
+def _load_translations(lang_code):
+    """Load translation strings for a language, with English fallback."""
+    global _strings, _strings_en
+    en_path = APP_DIR / "locales" / "en.json"
+    if en_path.exists():
+        _strings_en = json.loads(en_path.read_text(encoding="utf-8"))
+    lang_path = APP_DIR / "locales" / f"{lang_code.lower()}.json"
+    if lang_path.exists():
+        _strings = json.loads(lang_path.read_text(encoding="utf-8"))
+    else:
+        _strings = _strings_en.copy()
+
+def _t(key, **kwargs):
+    """Translate a string key with optional variable substitution."""
+    text = _strings.get(key) or _strings_en.get(key, key)
+    if kwargs:
+        for k, v in kwargs.items():
+            text = text.replace(f"{{{k}}}", str(v))
+    return text
+
+def _detect_os_language():
+    """Detect the OS UI language and return a DeepL language code."""
+    try:
+        if IS_WIN:
+            import ctypes
+            lcid = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+            primary = lcid & 0x3FF
+            lcid_map = {
+                0x01: "AR", 0x02: "BG", 0x05: "CS", 0x06: "DA", 0x07: "DE",
+                0x08: "EL", 0x09: "EN", 0x0A: "ES", 0x25: "ET", 0x0B: "FI",
+                0x0C: "FR", 0x0E: "HU", 0x21: "ID", 0x10: "IT", 0x11: "JA",
+                0x12: "KO", 0x27: "LT", 0x26: "LV", 0x14: "NB", 0x13: "NL",
+                0x15: "PL", 0x16: "PT", 0x18: "RO", 0x19: "RU", 0x1B: "SK",
+                0x24: "SL", 0x1D: "SV", 0x1F: "TR", 0x22: "UK", 0x04: "ZH",
+            }
+            return lcid_map.get(primary, "EN")
+        elif IS_MAC:
+            result = subprocess.check_output(
+                ["defaults", "read", ".GlobalPreferences", "AppleLanguages"],
+                text=True, timeout=5)
+            for line in result.splitlines():
+                line = line.strip().strip('",() ')
+                if len(line) >= 2 and line[0].isalpha():
+                    return line[:2].upper()
+            return "EN"
+        else:
+            lang = os.environ.get("LANG", "en_US.UTF-8")
+            return lang[:2].upper()
+    except Exception:
+        return "EN"
+
+def _load_language_list():
+    """Load language metadata from languages.json."""
+    lpath = APP_DIR / "locales" / "languages.json"
+    if lpath.exists():
+        return json.loads(lpath.read_text(encoding="utf-8"))
+    return {"EN": {"name": "English", "native": "English", "flag": "", "rtl": False}}
 
 
 # ── Microphone detection ──
@@ -134,6 +199,15 @@ class LinguaTaxiApp(tk.Tk):
         self._server_running = False
         self._server_ready = False
         self._closing = False
+
+        # Load language
+        lang = self.settings.get("language")
+        if not lang:
+            lang = _detect_os_language()
+            self.settings["language"] = lang
+        self._languages = _load_language_list()
+        _load_translations(lang)
+        self._current_lang = lang
 
         self._setup_window()
         self._build_ui()
