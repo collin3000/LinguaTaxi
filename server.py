@@ -237,8 +237,12 @@ def translate_text(text, target_lang, source_lang=None, mode="deepl"):
     elif mode == "offline-m2m":
         engine = "m2m100"
     src = source_lang or config.get("input_lang", "EN")
-    return offline_translate.translate_offline(text, src, target_lang,
-                                               str(MODELS_DIR), engine=engine)
+    result = offline_translate.translate_offline(text, src, target_lang,
+                                                 str(MODELS_DIR), engine=engine)
+    if not result:
+        log.debug(f"Offline translate ({engine}) {src}->{target_lang}: no result "
+                   f"(model may not be downloaded)")
+    return result
 
 # ── Audio ──
 SAMPLE_RATE = 16000; CHANNELS = 1; DTYPE = "float32"; CHUNK_DURATION = 0.5
@@ -779,22 +783,31 @@ def _do_translate(text, lang, slot, msg_type, loop, line_id=None, speaker_overri
     mode = "deepl"
     if slot < len(translations):
         mode = translations[slot].get("mode", "deepl")
-    translated = translate_text(text, lang, mode=mode)
-    if translated:
-        speaker = speaker_override if speaker_override is not None else ""
-        msg = {"type": msg_type, "translated": translated, "lang": lang, "slot": slot, "speaker": speaker}
-        if line_id is not None:
-            msg["line_id"] = line_id
-        _bc(loop, msg)
-        if msg_type == "final_translation":
-            prefix = f"{speaker}: " if speaker else ""
-            engine = "offline" if mode.startswith("offline") else "DeepL"
-            log.info(f"   [{slot}] {lang} ({engine}): {prefix}{translated}")
-            _save_line(lang, f"{prefix}{translated}")
-        elif msg_type == "correct_translation":
-            prefix = f"{speaker}: " if speaker else ""
-            log.info(f"   [{slot}] {lang} CORRECTED: {prefix}{translated}")
-            _save_line(lang, f"[corrected] {prefix}{translated}")
+    try:
+        translated = translate_text(text, lang, mode=mode)
+    except Exception as e:
+        engine = "offline" if mode.startswith("offline") else "DeepL"
+        log.error(f"   [{slot}] {lang} ({engine}) translation error: {e}")
+        return
+    if not translated:
+        if msg_type == "final_translation" and mode.startswith("offline"):
+            log.warning(f"   [{slot}] {lang} offline translation returned empty "
+                        f"(mode={mode}) — check model availability")
+        return
+    speaker = speaker_override if speaker_override is not None else ""
+    msg = {"type": msg_type, "translated": translated, "lang": lang, "slot": slot, "speaker": speaker}
+    if line_id is not None:
+        msg["line_id"] = line_id
+    _bc(loop, msg)
+    if msg_type == "final_translation":
+        prefix = f"{speaker}: " if speaker else ""
+        engine = "offline" if mode.startswith("offline") else "DeepL"
+        log.info(f"   [{slot}] {lang} ({engine}): {prefix}{translated}")
+        _save_line(lang, f"{prefix}{translated}")
+    elif msg_type == "correct_translation":
+        prefix = f"{speaker}: " if speaker else ""
+        log.info(f"   [{slot}] {lang} CORRECTED: {prefix}{translated}")
+        _save_line(lang, f"[corrected] {prefix}{translated}")
 
 
 # ── Audio Capture ──
@@ -1078,10 +1091,12 @@ async def o_update(
         "type": "config_update",
         **_style_config(),
         "translation_count": config.get("translation_count",1),
-        "all_translations": config.get("translations",[]),
         "font_css": _font_css(config.get("font_family","atkinson")),
         "ui_language": config.get("ui_language", "EN"),
     }
+    # Only trigger section rebuild on display when translations actually changed
+    if translations_json is not None or translation_count is not None or input_lang is not None:
+        update_msg["all_translations"] = config.get("translations",[])
     await broadcast_all(update_msg)
     return JSONResponse({"status":"ok"})
 
@@ -1614,9 +1629,15 @@ def main():
     parser.add_argument("--threshold", type=float, default=SILENCE_THRESHOLD)
     parser.add_argument("--transcripts-dir", type=str, default=None,
         help="Directory for transcript files (default: ~/Documents/LinguaTaxi Transcripts)")
+    parser.add_argument("--models-dir", type=str, default=None,
+        help="Directory for speech/translation models (default: <app-dir>/models)")
     args = parser.parse_args()
     if args.list_mics: list_mics(); sys.exit(0)
     global silence_threshold; silence_threshold = args.threshold
+    global MODELS_DIR
+    if args.models_dir:
+        MODELS_DIR = Path(args.models_dir)
+        MODELS_DIR.mkdir(parents=True, exist_ok=True)
     global TRANSCRIPTS_DIR
     if args.transcripts_dir:
         TRANSCRIPTS_DIR = Path(args.transcripts_dir)

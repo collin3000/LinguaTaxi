@@ -678,6 +678,10 @@ class LinguaTaxiApp(tk.Tk):
         if tdir:
             cmd.extend(["--transcripts-dir", tdir])
 
+        # Models directory — ensure server uses same path as launcher
+        models_dir = APP_DIR / "models"
+        cmd.extend(["--models-dir", str(models_dir)])
+
         return cmd
 
     # ── First-Run Model Download ──
