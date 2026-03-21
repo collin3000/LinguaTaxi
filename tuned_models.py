@@ -42,8 +42,8 @@ _HF_ALLOW = [
     "config.json", "preprocessor_config.json", "generation_config.json",
     "tokenizer.json", "tokenizer_config.json", "vocab.json", "merges.txt",
     "added_tokens.json", "special_tokens_map.json", "normalizer.json",
-    "model.safetensors", "model-*.safetensors",
-    "pytorch_model.bin", "pytorch_model-*.bin",
+    "model.safetensors", "model.safetensors.index.json", "model-*.safetensors",
+    "pytorch_model.bin", "pytorch_model.bin.index.json", "pytorch_model-*.bin",
 ]
 
 # ── Tuned model registry ──
