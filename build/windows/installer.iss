@@ -61,25 +61,88 @@ MinVersion=10.0
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "bulgarian"; MessagesFile: "compiler:Languages\Bulgarian.isl"
+Name: "czech"; MessagesFile: "compiler:Languages\Czech.isl"
+Name: "danish"; MessagesFile: "compiler:Languages\Danish.isl"
+Name: "german"; MessagesFile: "compiler:Languages\German.isl"
+Name: "greek"; MessagesFile: "compiler:Languages\Greek.isl"
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
+Name: "estonian"; MessagesFile: "compiler:Languages\Estonian.isl"
+Name: "finnish"; MessagesFile: "compiler:Languages\Finnish.isl"
+Name: "french"; MessagesFile: "compiler:Languages\French.isl"
+Name: "hungarian"; MessagesFile: "compiler:Languages\Hungarian.isl"
+Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
+Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
+Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
+Name: "dutch"; MessagesFile: "compiler:Languages\Dutch.isl"
+Name: "norwegian"; MessagesFile: "compiler:Languages\Norwegian.isl"
+Name: "polish"; MessagesFile: "compiler:Languages\Polish.isl"
+Name: "portuguese"; MessagesFile: "compiler:Languages\Portuguese.isl"
+Name: "romanian"; MessagesFile: "compiler:Languages\Romanian.isl"
+Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
+Name: "slovak"; MessagesFile: "compiler:Languages\Slovak.isl"
+Name: "slovenian"; MessagesFile: "compiler:Languages\Slovenian.isl"
+Name: "swedish"; MessagesFile: "compiler:Languages\Swedish.isl"
+Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
+Name: "ukrainian"; MessagesFile: "compiler:Languages\Ukrainian.isl"
+Name: "chinese_simplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+
+[CustomMessages]
+; Task descriptions
+DesktopShortcut=Create a desktop shortcut
+UpdateModels=Check for updated voice recognition models (requires internet)
+DownloadOffline=Download offline translation models (translate without internet)
+DownloadTuned=Download language-tuned voice models (optional)
+OpusEs=Spanish — OPUS-MT (~310 MB download, ~75 MB on disk)
+OpusFr=French — OPUS-MT (~310 MB download, ~75 MB on disk)
+OpusDe=German — OPUS-MT (~310 MB download, ~75 MB on disk)
+OpusIt=Italian — OPUS-MT (~310 MB download, ~75 MB on disk)
+OpusRu=Russian — OPUS-MT (~310 MB download, ~75 MB on disk)
+M2m100=M2M-100 Multilingual (~4.8 GB download, ~1.2 GB on disk, 100 languages)
+TunedEs=Spanish tuned model (~1.6 GB download, ~1.6 GB on disk)
+TunedFr=French tuned model (~3.1 GB download, ~2.9 GB on disk)
+TunedDe=German tuned model (~3.1 GB download, ~2.9 GB on disk)
+TunedAr=Arabic tuned model (~3.1 GB download, ~2.9 GB on disk)
+TunedJa=Japanese tuned model (~1.5 GB download, ~1.5 GB on disk)
+TunedZh=Chinese tuned model (~3.1 GB download, ~2.9 GB on disk)
+; Group descriptions
+AdditionalShortcuts=Additional shortcuts:
+ModelUpdates=Model updates:
+OfflineModels=Offline Translation Models:
+TunedModels=Language-tuned models (better accuracy for specific languages):
+; Status messages
+CheckingModels=Checking for updated voice recognition models...
+DownloadingTunedEs=Downloading & converting Spanish tuned model (~1.6 GB)...
+DownloadingTunedFr=Downloading & converting French tuned model (~3.1 GB)...
+DownloadingTunedDe=Downloading & converting German tuned model (~3.1 GB)...
+DownloadingTunedAr=Downloading & converting Arabic tuned model (~3.1 GB)...
+DownloadingTunedJa=Downloading & converting Japanese tuned model (~1.5 GB)...
+DownloadingTunedZh=Downloading & converting Chinese tuned model (~3.1 GB)...
+DownloadingOpusEs=Downloading Spanish OPUS-MT translation model (~310 MB)...
+DownloadingOpusFr=Downloading French OPUS-MT translation model (~310 MB)...
+DownloadingOpusDe=Downloading German OPUS-MT translation model (~310 MB)...
+DownloadingOpusIt=Downloading Italian OPUS-MT translation model (~310 MB)...
+DownloadingOpusRu=Downloading Russian OPUS-MT translation model (~310 MB)...
+DownloadingM2m=Downloading M2M-100 multilingual model (~4.8 GB, this may take 30-60 minutes)...
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: checkedonce
-Name: "updatemodels"; Description: "Check for updated voice recognition models (requires internet)"; GroupDescription: "Model updates:"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:DesktopShortcut}"; GroupDescription: "{cm:AdditionalShortcuts}"; Flags: checkedonce
+Name: "updatemodels"; Description: "{cm:UpdateModels}"; GroupDescription: "{cm:ModelUpdates}"; Flags: unchecked
 #if EDITION == "Full"
-Name: "offline"; Description: "Download offline translation models (translate without internet)"; GroupDescription: "Offline Translation Models:"; Flags: unchecked
-Name: "offline\opus_es"; Description: "Spanish — OPUS-MT (~310 MB download, ~75 MB on disk)"; Flags: unchecked
-Name: "offline\opus_fr"; Description: "French — OPUS-MT (~310 MB download, ~75 MB on disk)"; Flags: unchecked
-Name: "offline\opus_de"; Description: "German — OPUS-MT (~310 MB download, ~75 MB on disk)"; Flags: unchecked
-Name: "offline\opus_it"; Description: "Italian — OPUS-MT (~310 MB download, ~75 MB on disk)"; Flags: unchecked
-Name: "offline\opus_ru"; Description: "Russian — OPUS-MT (~310 MB download, ~75 MB on disk)"; Flags: unchecked
-Name: "offline\m2m100"; Description: "M2M-100 Multilingual (~4.8 GB download, ~1.2 GB on disk, 100 languages)"; Flags: unchecked
-Name: "tuned"; Description: "Download language-tuned voice models (optional)"; GroupDescription: "Language-tuned models (better accuracy for specific languages):"; Flags: unchecked
-Name: "tuned\es"; Description: "Spanish tuned model (~1.6 GB download, ~1.6 GB on disk)"; Flags: unchecked
-Name: "tuned\fr"; Description: "French tuned model (~3.1 GB download, ~2.9 GB on disk)"; Flags: unchecked
-Name: "tuned\de"; Description: "German tuned model (~3.1 GB download, ~2.9 GB on disk)"; Flags: unchecked
-Name: "tuned\ar"; Description: "Arabic tuned model (~3.1 GB download, ~2.9 GB on disk)"; Flags: unchecked
-Name: "tuned\ja"; Description: "Japanese tuned model (~1.5 GB download, ~1.5 GB on disk)"; Flags: unchecked
-Name: "tuned\zh"; Description: "Chinese tuned model (~3.1 GB download, ~2.9 GB on disk)"; Flags: unchecked
+Name: "offline"; Description: "{cm:DownloadOffline}"; GroupDescription: "{cm:OfflineModels}"; Flags: unchecked
+Name: "offline\opus_es"; Description: "{cm:OpusEs}"; Flags: unchecked
+Name: "offline\opus_fr"; Description: "{cm:OpusFr}"; Flags: unchecked
+Name: "offline\opus_de"; Description: "{cm:OpusDe}"; Flags: unchecked
+Name: "offline\opus_it"; Description: "{cm:OpusIt}"; Flags: unchecked
+Name: "offline\opus_ru"; Description: "{cm:OpusRu}"; Flags: unchecked
+Name: "offline\m2m100"; Description: "{cm:M2m100}"; Flags: unchecked
+Name: "tuned"; Description: "{cm:DownloadTuned}"; GroupDescription: "{cm:TunedModels}"; Flags: unchecked
+Name: "tuned\es"; Description: "{cm:TunedEs}"; Flags: unchecked
+Name: "tuned\fr"; Description: "{cm:TunedFr}"; Flags: unchecked
+Name: "tuned\de"; Description: "{cm:TunedDe}"; Flags: unchecked
+Name: "tuned\ar"; Description: "{cm:TunedAr}"; Flags: unchecked
+Name: "tuned\ja"; Description: "{cm:TunedJa}"; Flags: unchecked
+Name: "tuned\zh"; Description: "{cm:TunedZh}"; Flags: unchecked
 #endif
 
 [Files]
@@ -99,6 +162,9 @@ Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 #if EDITION == "Full"
 Source: "..\..\THIRD_PARTY_NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 #endif
+
+; ── Locale files ──
+Source: "..\..\locales\*"; DestDir: "{app}\locales"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; ── Assets ──
 Source: "..\..\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -134,22 +200,22 @@ Name: "{autodesktop}\{#MyAppShortName}"; Filename: "{app}\venv\Scripts\pythonw.e
 
 [Run]
 ; Optional: check for updated speech models (unchecked by default — bundled models work out of the box)
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\download_models.py"""; WorkingDir: "{app}"; Tasks: updatemodels; StatusMsg: "Checking for updated voice recognition models..."; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\download_models.py"""; WorkingDir: "{app}"; Tasks: updatemodels; StatusMsg: "{cm:CheckingModels}"; Flags: runhidden
 #if EDITION == "Full"
 ; Download language-tuned models (each runs only if its task is selected)
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download ES --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\es; StatusMsg: "Downloading & converting Spanish tuned model (~1.6 GB)..."; Flags: runhidden
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download FR --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\fr; StatusMsg: "Downloading & converting French tuned model (~3.1 GB)..."; Flags: runhidden
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download DE --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\de; StatusMsg: "Downloading & converting German tuned model (~3.1 GB)..."; Flags: runhidden
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download AR --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\ar; StatusMsg: "Downloading & converting Arabic tuned model (~3.1 GB)..."; Flags: runhidden
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download JA --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\ja; StatusMsg: "Downloading & converting Japanese tuned model (~1.5 GB)..."; Flags: runhidden
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download ZH --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\zh; StatusMsg: "Downloading & converting Chinese tuned model (~3.1 GB)..."; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download ES --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\es; StatusMsg: "{cm:DownloadingTunedEs}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download FR --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\fr; StatusMsg: "{cm:DownloadingTunedFr}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download DE --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\de; StatusMsg: "{cm:DownloadingTunedDe}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download AR --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\ar; StatusMsg: "{cm:DownloadingTunedAr}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download JA --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\ja; StatusMsg: "{cm:DownloadingTunedJa}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\tuned_models.py"" --download ZH --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: tuned\zh; StatusMsg: "{cm:DownloadingTunedZh}"; Flags: runhidden
 ; Offline translation models
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-opus ES --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\opus_es; StatusMsg: "Downloading Spanish OPUS-MT translation model (~310 MB)..."; Flags: runhidden
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-opus FR --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\opus_fr; StatusMsg: "Downloading French OPUS-MT translation model (~310 MB)..."; Flags: runhidden
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-opus DE --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\opus_de; StatusMsg: "Downloading German OPUS-MT translation model (~310 MB)..."; Flags: runhidden
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-opus IT --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\opus_it; StatusMsg: "Downloading Italian OPUS-MT translation model (~310 MB)..."; Flags: runhidden
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-opus RU --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\opus_ru; StatusMsg: "Downloading Russian OPUS-MT translation model (~310 MB)..."; Flags: runhidden
-Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-m2m --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\m2m100; StatusMsg: "Downloading M2M-100 multilingual model (~4.8 GB, this may take 30-60 minutes)..."; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-opus ES --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\opus_es; StatusMsg: "{cm:DownloadingOpusEs}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-opus FR --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\opus_fr; StatusMsg: "{cm:DownloadingOpusFr}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-opus DE --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\opus_de; StatusMsg: "{cm:DownloadingOpusDe}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-opus IT --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\opus_it; StatusMsg: "{cm:DownloadingOpusIt}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-opus RU --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\opus_ru; StatusMsg: "{cm:DownloadingOpusRu}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-m2m --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\m2m100; StatusMsg: "{cm:DownloadingM2m}"; Flags: runhidden
 #endif
 ; Launch after install
 Filename: "{app}\venv\Scripts\pythonw.exe"; Parameters: """{app}\launcher.pyw"""; WorkingDir: "{app}"; Description: "Launch {#MyAppShortName}"; Flags: nowait postinstall skipifsilent
