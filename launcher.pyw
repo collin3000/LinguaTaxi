@@ -62,7 +62,7 @@ DEFAULT_TRANSCRIPTS = Path.home() / "Documents" / "LinguaTaxi Transcripts"
 
 DEFAULT_SETTINGS = {
     "transcripts_dir": str(DEFAULT_TRANSCRIPTS),
-    "mic_index": None,
+    "source_indices": [-1],
     "backend": "auto",
     "model": "large-v3-turbo",
     "display_port": 3000,
@@ -80,7 +80,14 @@ def load_settings():
         SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
         if SETTINGS_FILE.exists():
             with open(SETTINGS_FILE, "r") as f:
-                return {**DEFAULT_SETTINGS, **json.load(f)}
+                cfg = {**DEFAULT_SETTINGS, **json.load(f)}
+            # Migrate old mic_index to source_indices
+            if "mic_index" in cfg and "source_indices" not in cfg:
+                idx = cfg.pop("mic_index")
+                cfg["source_indices"] = [idx if idx is not None else -1]
+            elif "mic_index" in cfg:
+                cfg.pop("mic_index")
+            return cfg
     except Exception:
         pass
     return dict(DEFAULT_SETTINGS)
@@ -98,14 +105,17 @@ def save_settings(cfg):
 # ── Microphone detection ──
 
 def list_mics():
-    """Return list of (index, name) for available input devices."""
+    """Return list of (index, name, is_loopback) for available input devices."""
     try:
         import sounddevice as sd
         devices = sd.query_devices()
         mics = []
         for i, d in enumerate(devices):
             if d.get("max_input_channels", 0) > 0:
-                mics.append((i, d["name"]))
+                name = d["name"]
+                is_loopback = any(kw in name.lower() for kw in
+                    ["loopback", "stereo mix", "what u hear", "wasapi"])
+                mics.append((i, name, is_loopback))
         return mics
     except Exception:
         return []
@@ -354,16 +364,21 @@ class LinguaTaxiApp(tk.Tk):
         ttk.Button(tdir_row, text="📁 Browse",
                    command=self._browse_tdir).pack(side="right")
 
-        # Microphone
-        ttk.Label(settings_frame, text="Microphone:",
+        # Audio Sources
+        ttk.Label(settings_frame, text="Audio Sources:",
                   style="Section.TLabel").pack(anchor="w")
-        self.mic_var = tk.StringVar(value="System Default")
-        self.mic_combo = ttk.Combobox(settings_frame, textvariable=self.mic_var,
-                                       state="readonly", font=("Segoe UI", 10))
-        self.mic_combo.pack(fill="x", pady=(2, 8))
-        self.mic_combo.bind("<<ComboboxSelected>>", self._on_mic_changed)
-        self.mic_combo.bind("<ButtonPress-1>", self._on_mic_dropdown_open)
-        self._refresh_mics()
+        self._source_frames = []  # list of (frame, combo, var) tuples
+        self._sources_container = ttk.Frame(settings_frame)
+        self._sources_container.pack(fill="x", pady=(2, 4))
+        self._mic_devices = []
+
+        # Initialize from settings
+        for idx in self.settings.get("source_indices", [-1]):
+            self._add_source_row(idx)
+
+        self._add_source_btn = ttk.Button(settings_frame, text="+ Add Source",
+                                           command=lambda: self._add_source_row())
+        self._add_source_btn.pack(fill="x", pady=(0, 8))
 
         # Backend
         ttk.Label(settings_frame, text="Speech Backend:",
@@ -436,61 +451,95 @@ class LinguaTaxiApp(tk.Tk):
         self.status_dot.delete("all")
         self.status_dot.create_oval(2, 2, 10, 10, fill=color, outline="")
 
-    # ── Microphone Management ──
+    # ── Audio Source Management ──
 
-    def _refresh_mics(self, preserve_selection=False):
-        prev_idx = self._get_selected_mic_index() if preserve_selection else None
+    def _add_source_row(self, device_index=None):
+        """Add an audio source row to the settings."""
+        if len(self._source_frames) >= 8:
+            return
+        row = ttk.Frame(self._sources_container)
+        row.pack(fill="x", pady=1)
+
+        num = len(self._source_frames) + 1
+        lbl = ttk.Label(row, text=f"Source {num}:", width=9)
+        lbl.pack(side="left")
+
+        var = tk.StringVar(value="System Default")
+        combo = ttk.Combobox(row, textvariable=var, state="readonly",
+                              font=("Segoe UI", 10))
+        combo.pack(side="left", fill="x", expand=True, padx=(4, 4))
+        combo.bind("<ButtonPress-1>", lambda e, c=combo: self._refresh_source_combo(c))
+
+        rm_btn = None
+        if len(self._source_frames) > 0:  # Can't remove Source 1
+            rm_btn = ttk.Button(row, text="X", width=3,
+                                 command=lambda r=row: self._remove_source_row(r))
+            rm_btn.pack(side="right")
+
+        self._source_frames.append((row, combo, var))
+        self._refresh_source_combo(combo)
+
+        # Select the specified device
+        if device_index is not None and device_index != -1:
+            mics = list_mics()
+            for j, (i, name, _) in enumerate(mics):
+                if i == device_index:
+                    combo.current(j + 1)  # +1 for "System Default"
+                    break
+
+        self._update_add_button()
+
+    def _remove_source_row(self, row):
+        """Remove an audio source row."""
+        self._source_frames = [(r, c, v) for r, c, v in self._source_frames if r != row]
+        row.destroy()
+        # Renumber labels
+        for i, (r, c, v) in enumerate(self._source_frames):
+            for child in r.winfo_children():
+                if isinstance(child, ttk.Label):
+                    child.configure(text=f"Source {i + 1}:")
+                    break
+        self._update_add_button()
+
+    def _update_add_button(self):
+        """Show/hide the Add Source button based on count."""
+        if len(self._source_frames) >= 8:
+            self._add_source_btn.pack_forget()
+        else:
+            try:
+                self._add_source_btn.pack(fill="x", pady=(0, 8))
+            except Exception:
+                pass
+
+    def _refresh_source_combo(self, combo):
+        """Refresh a source dropdown with grouped device list."""
         mics = list_mics()
         self._mic_devices = mics
-        names = ["System Default"] + [f"[{i}] {n}" for i, n in mics]
-        self.mic_combo["values"] = names
+        physical = [f"[{i}] {n}" for i, n, lb in mics if not lb]
+        loopback = [f"[{i}] {n}" for i, n, lb in mics if lb]
+        values = ["System Default"]
+        if physical:
+            values.extend(physical)
+        if loopback:
+            values.append("── System Audio ──")
+            values.extend(loopback)
+        elif IS_WIN:
+            values.append("── No system audio found (enable Stereo Mix) ──")
+        combo["values"] = values
 
-        # Restore selection: either previous (on refresh) or saved (on init)
-        target_idx = prev_idx if preserve_selection else self.settings.get("mic_index")
-        if target_idx is not None:
-            for j, (i, n) in enumerate(mics):
-                if i == target_idx:
-                    self.mic_combo.current(j + 1)
-                    return
-        self.mic_combo.current(0)
-
-    def _on_mic_dropdown_open(self, event=None):
-        """Re-query audio devices when the dropdown is clicked."""
-        self._refresh_mics(preserve_selection=True)
-
-    def _get_selected_mic_index(self):
-        sel = self.mic_combo.current()
-        if sel <= 0:
-            return None  # System default
-        return self._mic_devices[sel - 1][0]
-
-    def _on_mic_changed(self, event=None):
-        """When mic dropdown changes, push to running server via API."""
-        if not self._server_running or not self._server_ready:
-            return  # Will be applied at next server start via CLI args
-        mic_idx = self._get_selected_mic_index()
-        port = self.settings.get("operator_port", 3001)
-
-        def _send():
-            import urllib.request, urllib.parse
-            try:
-                data = urllib.parse.urlencode(
-                    {"mic_index": mic_idx if mic_idx is not None else ""})
-                req = urllib.request.Request(
-                    f"http://localhost:{port}/api/set-mic",
-                    data=data.encode(), method="POST")
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    import json as _json
-                    body = _json.loads(resp.read())
-                    if body.get("changed"):
-                        name = body.get("mic_name", "default")
-                        self.log_queue.put(("output",
-                            f"  Microphone switched to: {name}"))
-            except Exception as e:
-                self.log_queue.put(("output",
-                    f"  Mic change failed (will apply on restart): {e}"))
-
-        threading.Thread(target=_send, daemon=True).start()
+    def _get_source_indices(self):
+        """Get device indices for all configured audio sources."""
+        indices = []
+        for _, combo, var in self._source_frames:
+            text = var.get()
+            if text == "System Default" or combo.current() <= 0:
+                indices.append(-1)
+            else:
+                for i, name, _ in self._mic_devices:
+                    if f"[{i}] {name}" == text:
+                        indices.append(i)
+                        break
+        return indices
 
     # ── Server Management ──
 
@@ -503,10 +552,10 @@ class LinguaTaxiApp(tk.Tk):
         if backend and backend != "auto":
             cmd.extend(["--backend", backend])
 
-        # Microphone
-        mic_idx = self._get_selected_mic_index()
-        if mic_idx is not None:
-            cmd.extend(["--mic", str(mic_idx)])
+        # Audio sources
+        indices = self._get_source_indices()
+        if indices:
+            cmd.extend(["--sources", ",".join(str(i) for i in indices)])
 
         # Transcripts directory
         tdir = self.tdir_var.get().strip()
@@ -1851,7 +1900,7 @@ class LinguaTaxiApp(tk.Tk):
 
     def _save_current_settings(self):
         self.settings["transcripts_dir"] = self.tdir_var.get().strip()
-        self.settings["mic_index"] = self._get_selected_mic_index()
+        self.settings["source_indices"] = self._get_source_indices()
         self.settings["backend"] = self._backend_from_label.get(self.backend_var.get(), self.backend_var.get())
         self.settings["window_geometry"] = self.geometry()
         self.settings["check_for_updates"] = self.update_check_var.get()
