@@ -153,6 +153,7 @@ DEFAULT_CONFIG = {
     "font_family": "atkinson",
     "caption_color": "#FFFFFF",
     "backend": "auto",
+    "ui_language": "EN",
 }
 
 def load_config():
@@ -896,10 +897,24 @@ async def d_config():
     sc["font_css"] = _font_css(config.get("font_family","atkinson"))
     return JSONResponse(sc)
 
+@display_app.get("/api/locales/{lang}")
+async def d_get_locale(lang: str):
+    """Serve translation JSON for a language."""
+    locale_path = BASE_DIR / "locales" / f"{lang.lower()}.json"
+    if locale_path.exists():
+        data = json.loads(locale_path.read_text(encoding="utf-8"))
+        return JSONResponse(data)
+    # Fallback to English
+    en_path = BASE_DIR / "locales" / "en.json"
+    if en_path.exists():
+        return JSONResponse(json.loads(en_path.read_text(encoding="utf-8")))
+    return JSONResponse({})
+
 @display_app.websocket("/ws")
 async def d_ws(ws: WebSocket):
     await ws.accept(); display_clients.add(ws)
-    await ws.send_text(json.dumps({"type":"status","state":"connected"}))
+    await ws.send_text(json.dumps({"type":"status","state":"connected",
+        "ui_language": config.get("ui_language", "EN")}))
     # Send source list
     with _sources_lock:
         source_list = [{"id": s.id, "name": s.name, "speaker": s.speaker,
@@ -933,7 +948,8 @@ async def e_config():
 @extended_app.websocket("/ws")
 async def e_ws(ws: WebSocket):
     await ws.accept(); extended_clients.add(ws)
-    await ws.send_text(json.dumps({"type":"status","state":"connected"}))
+    await ws.send_text(json.dumps({"type":"status","state":"connected",
+        "ui_language": config.get("ui_language", "EN")}))
     # Send source list
     with _sources_lock:
         source_list = [{"id": s.id, "name": s.name, "speaker": s.speaker,
@@ -1018,6 +1034,19 @@ async def o_config():
             "offline_translate": {"opus": {}, "m2m100": {}},
         })
 
+@operator_app.get("/api/locales/{lang}")
+async def o_get_locale(lang: str):
+    """Serve translation JSON for a language."""
+    locale_path = BASE_DIR / "locales" / f"{lang.lower()}.json"
+    if locale_path.exists():
+        data = json.loads(locale_path.read_text(encoding="utf-8"))
+        return JSONResponse(data)
+    # Fallback to English
+    en_path = BASE_DIR / "locales" / "en.json"
+    if en_path.exists():
+        return JSONResponse(json.loads(en_path.read_text(encoding="utf-8")))
+    return JSONResponse({})
+
 @operator_app.post("/api/config")
 async def o_update(
     session_title: str = Form(None), deepl_api_key: str = Form(None),
@@ -1025,7 +1054,7 @@ async def o_update(
     translations_json: str = Form(None), speakers: str = Form(None),
     font_size: int = Form(None), max_lines: int = Form(None),
     bg_color: str = Form(None), font_family: str = Form(None),
-    caption_color: str = Form(None),
+    caption_color: str = Form(None), ui_language: str = Form(None),
 ):
     if session_title is not None: config["session_title"] = session_title
     if deepl_api_key is not None: config["deepl_api_key"] = deepl_api_key
@@ -1042,6 +1071,7 @@ async def o_update(
     if bg_color is not None: config["bg_color"] = bg_color
     if font_family is not None: config["font_family"] = font_family
     if caption_color is not None: config["caption_color"] = caption_color
+    if ui_language is not None: config["ui_language"] = ui_language
     save_config(config)
 
     update_msg = {
@@ -1050,6 +1080,7 @@ async def o_update(
         "translation_count": config.get("translation_count",1),
         "all_translations": config.get("translations",[]),
         "font_css": _font_css(config.get("font_family","atkinson")),
+        "ui_language": config.get("ui_language", "EN"),
     }
     await broadcast_all(update_msg)
     return JSONResponse({"status":"ok"})
@@ -1328,7 +1359,8 @@ async def api_reset_speakers():
 async def o_ws(ws: WebSocket):
     await ws.accept(); operator_clients.add(ws)
     await ws.send_text(json.dumps({"type":"status","state":"connected",
-        "model": stt_backend.name if stt_backend else "loading"}))
+        "model": stt_backend.name if stt_backend else "loading",
+        "ui_language": config.get("ui_language", "EN")}))
     # Send source list
     with _sources_lock:
         source_list = [{"id": s.id, "name": s.name, "speaker": s.speaker,
