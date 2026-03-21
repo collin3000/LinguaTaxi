@@ -281,8 +281,12 @@ def download_opus_model(models_dir, lang_code, on_complete=None):
                 shutil.rmtree(output_path)
             output_path.mkdir(parents=True, exist_ok=True)
 
-            from ctranslate2.converters import OpusMTConverter
-            converter = OpusMTConverter(hf_local)
+            try:
+                from ctranslate2.converters import OpusMTConverter
+                converter = OpusMTConverter(hf_local)
+            except (ImportError, Exception):
+                from ctranslate2.converters import TransformersConverter
+                converter = TransformersConverter(hf_local)
             converter.convert(str(output_path), quantization="int8", force=True)
 
             if not (output_path / "model.bin").exists():
@@ -304,6 +308,12 @@ def download_opus_model(models_dir, lang_code, on_complete=None):
                 on_complete(key, True, "")
 
         except Exception as e:
+            # Clean up empty/partial output directory
+            if output_path.exists() and not (output_path / "model.bin").exists():
+                try:
+                    shutil.rmtree(output_path)
+                except Exception:
+                    pass
             error_msg = str(e)[:200]
             _set_progress(key, "error", 0, error_msg)
             log.error(f"OPUS-MT download failed for {lang_code}: {e}")
@@ -389,6 +399,12 @@ def download_m2m_model(models_dir, on_complete=None):
                 on_complete(key, True, "")
 
         except Exception as e:
+            # Clean up empty/partial output directory
+            if output_path.exists() and not (output_path / "model.bin").exists():
+                try:
+                    shutil.rmtree(output_path)
+                except Exception:
+                    pass
             error_msg = str(e)[:200]
             _set_progress(key, "error", 0, error_msg)
             log.error(f"M2M-100 download failed: {e}")
