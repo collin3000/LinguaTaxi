@@ -722,31 +722,48 @@ def _do_translate(text, lang, slot, msg_type, loop, line_id=None, speaker_overri
 
 
 # ── Audio Capture ──
-def audio_callback(indata, frames, ti, status):
-    if status: log.warning(f"Audio: {status}")
-    audio_queue.put(indata.copy())
+def _make_audio_callback(source):
+    """Create a callback bound to a specific AudioSource's queue."""
+    def callback(indata, frames, ti, status):
+        if status:
+            log.warning(f"Audio [{source.name}]: {status}")
+        source.queue.put(indata.copy())
+    return callback
+
+
+def start_source_capture(source):
+    """Open audio stream for a single AudioSource. Runs in its own thread."""
+    bs = int(SAMPLE_RATE * CHUNK_DURATION)
+    while source.active and not shutdown_event.is_set():
+        source.restart_event.clear()
+        try:
+            cb = _make_audio_callback(source)
+            s = sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, dtype=DTYPE,
+                               blocksize=bs, device=source.device_index, callback=cb)
+            source.stream = s
+            s.start()
+            log.info(f"Audio capture started for [{source.name}] (device: {source.device_index or 'default'})")
+            while source.active and not shutdown_event.is_set() and not source.restart_event.is_set():
+                shutdown_event.wait(0.3)
+            s.stop()
+            s.close()
+            source.stream = None
+            if source.restart_event.is_set() and source.active:
+                log.info(f"Restarting capture for [{source.name}]")
+                continue
+            break
+        except Exception as e:
+            log.error(f"Audio capture error [{source.name}]: {e}")
+            source.stream = None
+            break
+
 
 def start_audio_capture(dev_idx=None):
-    global current_mic_index
-    current_mic_index = dev_idx
-    bs = int(SAMPLE_RATE * CHUNK_DURATION)
-    while not shutdown_event.is_set():
-        mic_restart_event.clear()
-        try:
-            s = sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, dtype=DTYPE,
-                               blocksize=bs, device=current_mic_index, callback=audio_callback)
-            s.start()
-            log.info(f"Audio capture started (device: {current_mic_index or 'default'})")
-            while not shutdown_event.is_set() and not mic_restart_event.is_set():
-                shutdown_event.wait(0.3)
-            s.stop(); s.close()
-            if mic_restart_event.is_set():
-                log.info(f"Switching microphone to device: {current_mic_index or 'default'}")
-                continue  # restart loop with new mic
-            break  # shutdown
-        except Exception as e:
-            log.error(f"Audio capture error: {e}")
-            break
+    """Legacy single-source capture. Creates Source 0 if not exists."""
+    src = get_source(0)
+    if not src:
+        src = add_source(dev_idx, "Microphone")
+    start_source_capture(src)
 
 
 # ══════════════════════════════════════════════
