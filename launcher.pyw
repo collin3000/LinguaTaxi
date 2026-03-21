@@ -371,7 +371,7 @@ class LinguaTaxiApp(tk.Tk):
         ttk.Button(settings_frame, text="⬇  Download Offline Translation Models",
                    command=self._show_offline_translate_dialog).pack(fill="x", pady=(0, 4))
 
-        ttk.Button(settings_frame, text="🔧  Manage Installed Models",
+        ttk.Button(settings_frame, text="🗑  Delete Installed Models",
                    command=self._show_model_manager_dialog).pack(fill="x", pady=(0, 0))
 
         # ── Log Area ──
@@ -1263,7 +1263,7 @@ class LinguaTaxiApp(tk.Tk):
     def _show_model_manager_dialog(self):
         """Show dialog to view, update, and delete installed models."""
         dlg = tk.Toplevel(self)
-        dlg.title("Manage Installed Models")
+        dlg.title("Delete Installed Models")
         dlg.geometry("680x620")
         dlg.minsize(500, 350)
         dlg.resizable(True, True)
@@ -1279,7 +1279,7 @@ class LinguaTaxiApp(tk.Tk):
         f = ttk.Frame(dlg, padding=16)
         f.pack(fill="both", expand=True)
 
-        ttk.Label(f, text="Manage Installed Models",
+        ttk.Label(f, text="Delete Installed Models",
                   font=("Segoe UI", 13, "bold"),
                   foreground=self.ACCENT, background=self.BG).pack(pady=(0, 4))
 
@@ -1430,31 +1430,13 @@ class LinguaTaxiApp(tk.Tk):
             sep = ttk.Separator(parent, orient="horizontal")
             sep.pack(fill="x", pady=(0, 4))
 
-        def _download_model(model_type, key, name):
-            """Launch the appropriate download dialog for a model."""
-            dlg.grab_release()
-            if model_type == "tuned":
-                self._show_tuned_models_dialog()
-            elif model_type in ("opus", "m2m"):
-                self._show_offline_translate_dialog()
-            # Re-grab after download dialog closes
-            try:
-                dlg.grab_set()
-            except Exception:
-                pass
-            _populate()
-
-        def _add_model_row(parent, name, size_str, model_type, key, installed=True):
-            """Add a single model row with name, size, and action buttons."""
+        def _add_model_row(parent, name, size_str, model_type, key):
+            """Add a single model row with name, size, and delete button."""
             row = tk.Frame(parent, bg=self.BG)
             row.pack(fill="x", pady=2, padx=4)
 
-            if installed:
-                indicator = tk.Label(row, text="●", fg="#66BB6A", bg=self.BG,
-                                     font=("Segoe UI", 9))
-            else:
-                indicator = tk.Label(row, text="○", fg="#666", bg=self.BG,
-                                     font=("Segoe UI", 9))
+            indicator = tk.Label(row, text="●", fg="#66BB6A", bg=self.BG,
+                                 font=("Segoe UI", 9))
             indicator.pack(side="left", padx=(0, 4))
 
             name_lbl = tk.Label(row, text=name, fg=self.FG, bg=self.BG,
@@ -1465,23 +1447,13 @@ class LinguaTaxiApp(tk.Tk):
                                 font=("Segoe UI", 9))
             size_lbl.pack(side="left", padx=(8, 8))
 
-            if installed:
-                # Use default args to capture current values (avoid lambda closure bug)
-                del_btn = tk.Button(row, text="  Delete  ", fg="#fff", bg="#c62828",
-                                    activeforeground="#fff", activebackground="#f44336",
-                                    font=("Segoe UI", 8, "bold"), relief="raised",
-                                    cursor="hand2", bd=1,
-                                    command=lambda mt=model_type, k=key, n=name:
-                                        _delete_model(mt, k, n))
-                del_btn.pack(side="right", padx=(4, 0))
-            else:
-                dl_btn = tk.Button(row, text=" Download ", fg="#fff", bg="#2E7D32",
-                                   activeforeground="#fff", activebackground="#4CAF50",
-                                   font=("Segoe UI", 8, "bold"), relief="raised",
-                                   cursor="hand2", bd=1,
-                                   command=lambda mt=model_type, k=key, n=name:
-                                       _download_model(mt, k, n))
-                dl_btn.pack(side="right", padx=(4, 0))
+            del_btn = tk.Button(row, text="  Delete  ", fg="#fff", bg="#c62828",
+                                activeforeground="#fff", activebackground="#f44336",
+                                font=("Segoe UI", 8, "bold"), relief="raised",
+                                cursor="hand2", bd=1,
+                                command=lambda mt=model_type, k=key, n=name:
+                                    _delete_model(mt, k, n))
+            del_btn.pack(side="right", padx=(4, 0))
 
         def _populate():
             """Load and display all model info."""
@@ -1508,19 +1480,18 @@ class LinguaTaxiApp(tk.Tk):
             tuned = _get_tuned_models()
             has_tuned = False
             for lang, info in sorted(tuned.items()):
-                name = f"{info.get('name', lang)} ({lang})"
-                avail = info.get("available", False)
-                if avail:
+                if info.get("available", False):
                     has_tuned = True
+                    name = f"{info.get('name', lang)} ({lang})"
                     tuned_dir = models_dir / "tuned" / lang.lower()
                     size = sum(f.stat().st_size for f in tuned_dir.rglob("*") if f.is_file()) if tuned_dir.exists() else 0
                     total_bytes += size
                     _add_model_row(list_frame, name, _fmt_size(size), "tuned", lang)
-                else:
-                    size_gb = info.get("size_gb", "?")
-                    _add_model_row(list_frame, name, f"~{size_gb} GB", "tuned", lang, installed=False)
             if not tuned:
                 tk.Label(list_frame, text="  tuned_models.py not found (Full edition only)",
+                         fg="#666", bg=self.BG, font=("Segoe UI", 9, "italic")).pack(anchor="w")
+            elif not has_tuned:
+                tk.Label(list_frame, text="  No tuned models installed",
                          fg="#666", bg=self.BG, font=("Segoe UI", 9, "italic")).pack(anchor="w")
 
             # Translation models
@@ -1530,35 +1501,27 @@ class LinguaTaxiApp(tk.Tk):
             m2m = translate.get("m2m100", {})
 
             # OPUS-MT
+            has_opus = False
             if opus:
                 for lang, info in sorted(opus.items()):
-                    name = f"OPUS-MT {info.get('name', lang)} ({lang})"
-                    avail = info.get("available", False)
-                    if avail:
+                    if info.get("available", False):
+                        has_opus = True
+                        name = f"OPUS-MT {info.get('name', lang)} ({lang})"
                         opus_dir = models_dir / "translate" / f"opus-mt-en-{lang.lower()}"
                         size = sum(f.stat().st_size for f in opus_dir.rglob("*") if f.is_file()) if opus_dir.exists() else 0
                         total_bytes += size
                         _add_model_row(list_frame, name, _fmt_size(size), "opus", lang)
-                    else:
-                        size_mb = info.get("size_mb", 310)
-                        _add_model_row(list_frame, name, f"~{size_mb} MB", "opus", lang, installed=False)
 
             # M2M-100
-            if m2m:
+            if m2m and m2m.get("available", False):
                 m2m_name = m2m.get("name", "M2M-100")
-                m2m_avail = m2m.get("available", False)
-                if m2m_avail:
-                    m2m_dir = models_dir / "translate" / "m2m100-1.2b"
-                    size = sum(f.stat().st_size for f in m2m_dir.rglob("*") if f.is_file()) if m2m_dir.exists() else 0
-                    total_bytes += size
-                    _add_model_row(list_frame, m2m_name, _fmt_size(size), "m2m", "m2m100")
-                else:
-                    size_mb = m2m.get("size_mb", 4800)
-                    size_str = f"~{size_mb / 1000:.1f} GB" if size_mb >= 1000 else f"~{size_mb} MB"
-                    _add_model_row(list_frame, m2m_name, size_str, "m2m", "m2m100", installed=False)
+                m2m_dir = models_dir / "translate" / "m2m100-1.2b"
+                size = sum(f.stat().st_size for f in m2m_dir.rglob("*") if f.is_file()) if m2m_dir.exists() else 0
+                total_bytes += size
+                _add_model_row(list_frame, m2m_name, _fmt_size(size), "m2m", "m2m100")
 
-            if not translate:
-                tk.Label(list_frame, text="  offline_translate.py not found (Full edition only)",
+            if not translate or (not has_opus and not (m2m and m2m.get("available", False))):
+                tk.Label(list_frame, text="  No offline translation models installed",
                          fg="#666", bg=self.BG, font=("Segoe UI", 9, "italic")).pack(anchor="w")
 
             # Check for leftover HF cache
