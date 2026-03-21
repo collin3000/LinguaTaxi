@@ -53,16 +53,13 @@ _PLACEHOLDER_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 def protect_placeholders(text: str) -> str:
-    """Replace {var} with <x id="var"/> so DeepL treats them as opaque XML tags."""
-    return _PLACEHOLDER_RE.sub(r'<x id="\1"/>', text)
+    """Replace {var} with sentinel strings that DeepL won't translate."""
+    return _PLACEHOLDER_RE.sub(r'XPHR_\1_XPHR', text)
 
 
 def restore_placeholders(text: str) -> str:
-    """Restore <x id="var"/> (or self-closing variants) back to {var}."""
-    # DeepL may return <x id="var"/> or <x id="var"></x> — handle both.
-    text = re.sub(r'<x id="([A-Za-z_][A-Za-z0-9_]*)"\s*/>', r'{\1}', text)
-    text = re.sub(r'<x id="([A-Za-z_][A-Za-z0-9_]*)"\s*></x>', r'{\1}', text)
-    return text
+    """Restore XPHR_var_XPHR sentinels back to {var}."""
+    return re.sub(r'XPHR_([A-Za-z_][A-Za-z0-9_]*)_XPHR', r'{\1}', text)
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +77,7 @@ def deepl_translate(texts: list[str], target_lang: str, api_key: str) -> list[st
         "text": texts,
         "source_lang": "EN",
         "target_lang": target_lang,
-        "tag_handling": "xml",
+        "preserve_formatting": True,
     }).encode("utf-8")
 
     req = urllib.request.Request(
