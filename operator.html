@@ -117,6 +117,20 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 .source-device{color:#888;font-size:0.8em;margin-left:8px;white-space:nowrap}
 .spbtn-add{border-style:dashed;opacity:0.5}
 .spbtn-add:hover{opacity:1}
+
+/* ── Color Picker ── */
+.cp-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000}
+.cp-popup{background:#1e1e2e;border-radius:12px;padding:16px;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.cp-presets{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-bottom:12px}
+.cp-presets span{width:28px;height:28px;border-radius:4px;cursor:pointer;border:2px solid transparent;transition:border-color 0.15s}
+.cp-presets span:hover{border-color:#fff}
+.cp-presets span.cp-sel{border-color:#4FC3F7}
+#cpSquare{border-radius:4px;cursor:crosshair;display:block;margin-bottom:8px}
+#cpHue{border-radius:10px;cursor:pointer;display:block;margin-bottom:12px}
+.cp-preview{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.cp-preview-swatch{width:32px;height:32px;border-radius:6px;border:1px solid #666}
+.cp-hex{color:#aaa;font-family:monospace;font-size:0.9em}
+.cp-btns{display:flex;gap:8px;justify-content:flex-end}
 </style>
 </head>
 <body>
@@ -783,17 +797,160 @@ function renameSource(id, newName){
     buildSourceList();
 }
 
-// Color picker stub (Task 8 will implement full version)
+// ── Color Picker ──
+let cpSourceId=-1, cpHue=0, cpSat=100, cpBri=100, cpDragging=null;
+
 function openColorPicker(sourceId){
-    const color=prompt('Enter hex color (e.g. #FF5722):');
-    if(color&&/^#[0-9A-Fa-f]{6}$/.test(color)){
-        if(ws&&ws.readyState===1){
-            ws.send(JSON.stringify({type:'set_speaker',speaker:'',source_id:sourceId,color:color}));
-        }
-        const s=sources.find(x=>x.id===sourceId);
-        if(s) s.color=color;
-        buildSourceList();
+    cpSourceId=sourceId;
+    const s=sources.find(x=>x.id===sourceId);
+    if(s&&s.color){
+        const hsb=hexToHSB(s.color);
+        cpHue=hsb.h; cpSat=hsb.s; cpBri=hsb.b;
+    } else {
+        cpHue=0; cpSat=0; cpBri=100;
     }
+    document.getElementById('colorPickerOverlay').style.display='flex';
+    renderPresets();
+    drawHueBar();
+    drawSBSquare();
+    updatePreview();
+}
+
+function closeColorPicker(){
+    document.getElementById('colorPickerOverlay').style.display='none';
+    cpDragging=null;
+}
+
+function renderPresets(){
+    const el=document.getElementById('cpPresets');
+    const bg=getComputedStyle(document.querySelector('.preview-area')||document.body).backgroundColor||'#1a1a2e';
+    const presets=generatePresets(bg);
+    let h='';
+    presets.forEach(c=>{
+        h+=`<span style="background:${c}" onclick="cpSelectPreset('${c}')" title="${c}"></span>`;
+    });
+    el.innerHTML=h;
+}
+
+function generatePresets(bgColor){
+    const presets=[];
+    for(let i=0;i<32;i++){
+        const hue=(i*360/32)%360;
+        const hex=hsbToHex(hue,85,70+(i%2)*15);
+        presets.push(hex);
+    }
+    return presets;
+}
+
+function cpSelectPreset(hex){
+    const hsb=hexToHSB(hex);
+    cpHue=hsb.h; cpSat=hsb.s; cpBri=hsb.b;
+    drawSBSquare();
+    updatePreview();
+}
+
+function drawHueBar(){
+    const c=document.getElementById('cpHue');
+    const ctx=c.getContext('2d');
+    const grad=ctx.createLinearGradient(0,0,c.width,0);
+    for(let i=0;i<=6;i++) grad.addColorStop(i/6,`hsl(${i*60},100%,50%)`);
+    ctx.fillStyle=grad;
+    ctx.fillRect(0,0,c.width,c.height);
+    // Indicator
+    const x=cpHue/360*c.width;
+    ctx.beginPath();ctx.arc(x,c.height/2,8,0,Math.PI*2);
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+    c.onmousedown=e=>{cpDragging='hue';cpHueMove(e)};
+}
+
+function cpHueMove(e){
+    const c=document.getElementById('cpHue');
+    const r=c.getBoundingClientRect();
+    cpHue=Math.max(0,Math.min(360,(e.clientX-r.left)/r.width*360));
+    drawHueBar(); drawSBSquare(); updatePreview();
+}
+
+function drawSBSquare(){
+    const c=document.getElementById('cpSquare');
+    const ctx=c.getContext('2d');
+    ctx.fillStyle=`hsl(${cpHue},100%,50%)`;
+    ctx.fillRect(0,0,c.width,c.height);
+    const gw=ctx.createLinearGradient(0,0,c.width,0);
+    gw.addColorStop(0,'rgba(255,255,255,1)');gw.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=gw;ctx.fillRect(0,0,c.width,c.height);
+    const gb=ctx.createLinearGradient(0,0,0,c.height);
+    gb.addColorStop(0,'rgba(0,0,0,0)');gb.addColorStop(1,'rgba(0,0,0,1)');
+    ctx.fillStyle=gb;ctx.fillRect(0,0,c.width,c.height);
+    // Indicator
+    const x=cpSat/100*c.width, y=(1-cpBri/100)*c.height;
+    ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+    ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);
+    ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.stroke();
+    c.onmousedown=e=>{cpDragging='sb';cpSBMove(e)};
+}
+
+function cpSBMove(e){
+    const c=document.getElementById('cpSquare');
+    const r=c.getBoundingClientRect();
+    cpSat=Math.max(0,Math.min(100,(e.clientX-r.left)/r.width*100));
+    cpBri=Math.max(0,Math.min(100,(1-(e.clientY-r.top)/r.height)*100));
+    drawSBSquare(); updatePreview();
+}
+
+// Global mouse handlers for dragging
+document.addEventListener('mousemove',e=>{
+    if(cpDragging==='hue')cpHueMove(e);
+    else if(cpDragging==='sb')cpSBMove(e);
+});
+document.addEventListener('mouseup',()=>{cpDragging=null});
+
+function updatePreview(){
+    const hex=hsbToHex(cpHue,cpSat,cpBri);
+    document.getElementById('cpPreview').style.background=hex;
+    document.getElementById('cpHex').textContent=hex;
+}
+
+function cpReset(){
+    cpHue=0;cpSat=0;cpBri=100;
+    drawHueBar();drawSBSquare();updatePreview();
+}
+
+function cpApply(){
+    const hex=hsbToHex(cpHue,cpSat,cpBri);
+    const s=sources.find(x=>x.id===cpSourceId);
+    if(s) s.color=hex;
+    if(ws&&ws.readyState===1){
+        ws.send(JSON.stringify({type:'set_speaker',speaker:s?s.speaker:'',source_id:cpSourceId,color:hex}));
+    }
+    buildSourceList();
+    closeColorPicker();
+}
+
+// ── Color conversion utilities ──
+function hsbToHex(h,s,b){
+    s/=100;b/=100;
+    const k=n=>(n+h/60)%6;
+    const f=n=>b*(1-s*Math.max(0,Math.min(k(n),4-k(n),1)));
+    const r=Math.round(f(5)*255),g=Math.round(f(3)*255),bl=Math.round(f(1)*255);
+    return '#'+[r,g,bl].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
+function hexToHSB(hex){
+    hex=hex.replace('#','');
+    const r=parseInt(hex.substr(0,2),16)/255;
+    const g=parseInt(hex.substr(2,2),16)/255;
+    const b=parseInt(hex.substr(4,2),16)/255;
+    const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
+    let h=0;
+    if(d!==0){
+        if(max===r)h=60*(((g-b)/d)%6);
+        else if(max===g)h=60*((b-r)/d+2);
+        else h=60*((r-g)/d+4);
+    }
+    if(h<0)h+=360;
+    const s=max===0?0:d/max*100;
+    return{h,s,b:max*100};
 }
 
 // ── Speakers ──
@@ -1285,5 +1442,22 @@ document.addEventListener('keydown',e=>{
   if(n>=1&&n<=9&&n<=speakers.length)setSp(n);
 });
 </script>
+
+<!-- Color Picker Overlay -->
+<div id="colorPickerOverlay" class="cp-overlay" style="display:none" onclick="closeColorPicker()">
+  <div class="cp-popup" onclick="event.stopPropagation()">
+    <div class="cp-presets" id="cpPresets"></div>
+    <canvas id="cpSquare" width="256" height="256"></canvas>
+    <canvas id="cpHue" width="256" height="20"></canvas>
+    <div class="cp-preview">
+      <span id="cpPreview" class="cp-preview-swatch"></span>
+      <span id="cpHex" class="cp-hex">#FFFFFF</span>
+    </div>
+    <div class="cp-btns">
+      <button class="btn" onclick="cpReset()">Reset</button>
+      <button class="btn btn-g" onclick="cpApply()">Done</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
