@@ -2041,7 +2041,141 @@ class LinguaTaxiApp(tk.Tk):
 
     def _download_update(self, tag, assets):
         """Download the installer for the current edition."""
-        messagebox.showinfo("Download", "Not yet implemented.", parent=self)
+        url, filename = self._find_asset_url(assets, tag)
+
+        if url is None:
+            if EDITION == "Dev":
+                webbrowser.open(f"https://github.com/{GITHUB_REPO}/releases/tag/{tag}")
+                self._log_system("Opened GitHub releases page in browser.")
+                return
+            messagebox.showerror("Download Error",
+                f"Could not find installer for {EDITION} edition in this release.",
+                parent=self)
+            return
+
+        # Ask where to save
+        downloads_dir = Path.home() / "Downloads"
+        save_path = filedialog.asksaveasfilename(
+            parent=self,
+            initialdir=str(downloads_dir),
+            initialfile=filename,
+            title="Save Installer As",
+            defaultextension=Path(filename).suffix,
+            filetypes=[("Installer", f"*{Path(filename).suffix}"), ("All files", "*.*")],
+        )
+        if not save_path:
+            return
+
+        save_path = Path(save_path)
+        self._show_download_progress(url, save_path)
+
+    def _show_download_progress(self, url, save_path):
+        """Show progress dialog while downloading the installer."""
+        dlg = tk.Toplevel(self)
+        dlg.title("Downloading Update")
+        dlg.geometry("460x160")
+        dlg.resizable(False, False)
+        dlg.configure(bg=self.BG)
+        dlg.transient(self)
+        dlg.grab_set()
+
+        dlg.update_idletasks()
+        px = self.winfo_x() + (self.winfo_width() - 460) // 2
+        py = self.winfo_y() + (self.winfo_height() - 160) // 2
+        dlg.geometry(f"+{px}+{py}")
+
+        f = ttk.Frame(dlg, padding=20)
+        f.pack(fill="both", expand=True)
+
+        status_var = tk.StringVar(value="Connecting...")
+        ttk.Label(f, textvariable=status_var, style="Subtitle.TLabel").pack(pady=(0, 8))
+
+        progress = ttk.Progressbar(f, mode="determinate", length=400)
+        progress.pack(pady=(0, 12))
+
+        cancelled = [False]
+
+        def _cancel():
+            cancelled[0] = True
+
+        cancel_btn = ttk.Button(f, text="Cancel", command=_cancel)
+        cancel_btn.pack()
+
+        def _worker():
+            partial = Path(str(save_path) + ".part")
+            try:
+                req = urllib.request.Request(url, headers={
+                    "User-Agent": f"LinguaTaxi/{VERSION}",
+                })
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    total = int(resp.headers.get("Content-Length", 0))
+                    downloaded = 0
+                    chunk_size = 64 * 1024
+
+                    with open(partial, "wb") as out:
+                        while True:
+                            if cancelled[0]:
+                                break
+                            chunk = resp.read(chunk_size)
+                            if not chunk:
+                                break
+                            out.write(chunk)
+                            downloaded += len(chunk)
+
+                            if total > 0:
+                                pct = downloaded * 100 / total
+                                mb = downloaded / (1024 * 1024)
+                                total_mb = total / (1024 * 1024)
+                                self.after(0, lambda p=pct, m=mb, t=total_mb: (
+                                    progress.configure(value=p),
+                                    status_var.set(f"{m:.1f} / {t:.1f} MB ({p:.0f}%)")
+                                ))
+
+                if cancelled[0]:
+                    partial.unlink(missing_ok=True)
+                    self.after(0, dlg.destroy)
+                    return
+
+                # Rename .part to final
+                if save_path.exists():
+                    save_path.unlink()
+                partial.rename(save_path)
+
+                self.after(0, lambda: _download_complete(dlg, status_var, progress, cancel_btn))
+
+            except Exception as e:
+                partial.unlink(missing_ok=True)
+                def _show_error(err=e):
+                    status_var.set(f"Download failed: {err}")
+                    cancel_btn.configure(text="Close", command=dlg.destroy)
+                self.after(0, _show_error)
+
+        def _download_complete(dlg, status_var, progress, cancel_btn):
+            status_var.set("Download complete!")
+            progress.configure(value=100)
+            cancel_btn.destroy()
+
+            btn_frame = ttk.Frame(f)
+            btn_frame.pack(pady=(4, 0))
+
+            def _open_folder():
+                if IS_WIN:
+                    subprocess.Popen(["explorer", "/select,", str(save_path)])
+                elif IS_MAC:
+                    subprocess.Popen(["open", "-R", str(save_path)])
+                else:
+                    subprocess.Popen(["xdg-open", str(save_path.parent)])
+                dlg.destroy()
+
+            ttk.Button(btn_frame, text="Open Folder", command=_open_folder).pack(side="left", padx=(0, 8))
+            ttk.Button(btn_frame, text="Close", command=dlg.destroy).pack(side="left")
+
+            # Reminder
+            ttk.Label(f, text="Close LinguaTaxi before running the installer.",
+                      style="Subtitle.TLabel").pack(pady=(8, 0))
+
+        threading.Thread(target=_worker, daemon=True).start()
+        self.wait_window(dlg)
 
     # ── Cleanup ──
 
