@@ -304,7 +304,7 @@ def main() -> int:
 
         out_path = locales_dir / f"{lang.lower()}.json"
         save_json(out_path, output)
-        print(f"  Saved → {out_path.relative_to(repo_root)}")
+        print(f"  Saved -> {out_path.relative_to(repo_root)}")
         succeeded.append(lang)
 
     # Summary.
