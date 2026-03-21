@@ -1989,6 +1989,60 @@ class LinguaTaxiApp(tk.Tk):
 
         self._show_update_dialog(tag, assets)
 
+    def _show_update_dialog(self, tag, assets):
+        """Show dialog offering to download a new version."""
+        version = tag.lstrip("v")
+
+        dlg = tk.Toplevel(self)
+        dlg.title("Update Available")
+        dlg.geometry("440x200")
+        dlg.resizable(False, False)
+        dlg.configure(bg=self.BG)
+        dlg.transient(self)
+        dlg.grab_set()
+
+        dlg.update_idletasks()
+        px = self.winfo_x() + (self.winfo_width() - 440) // 2
+        py = self.winfo_y() + (self.winfo_height() - 200) // 2
+        dlg.geometry(f"+{px}+{py}")
+
+        f = ttk.Frame(dlg, padding=24)
+        f.pack(fill="both", expand=True)
+
+        ttk.Label(f, text=f"LinguaTaxi v{version} is available!",
+                  font=("Segoe UI", 12, "bold"),
+                  foreground=self.ACCENT, background=self.BG).pack(pady=(0, 4))
+        ttk.Label(f, text=f"You have v{VERSION}.",
+                  style="Subtitle.TLabel").pack(pady=(0, 16))
+
+        btn_frame = ttk.Frame(f)
+        btn_frame.pack(fill="x")
+
+        def _download_now():
+            dlg.destroy()
+            self._download_update(tag, assets)
+
+        def _remind_later():
+            dlg.destroy()
+
+        def _dont_remind():
+            self.settings["dismissed_version"] = tag
+            save_settings(self.settings)
+            dlg.destroy()
+
+        ttk.Button(btn_frame, text="Download Now", style="Start.TButton",
+                   command=_download_now).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_frame, text="Remind Me Later",
+                   command=_remind_later).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_frame, text="Don't Remind Me",
+                   command=_dont_remind).pack(side="left")
+
+        self.wait_window(dlg)
+
+    def _download_update(self, tag, assets):
+        """Download the installer for the current edition."""
+        messagebox.showinfo("Download", "Not yet implemented.", parent=self)
+
     # ── Cleanup ──
 
     def _on_close(self):
