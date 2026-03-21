@@ -53,6 +53,8 @@ cp "$PROJECT_DIR/download_models.py" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/tuned_models.py" "$APP_BUNDLE/Contents/Resources/"
 cp "$PROJECT_DIR/offline_translate.py" "$APP_BUNDLE/Contents/Resources/"
 
+echo "macOS" > "$APP_BUNDLE/Contents/Resources/edition.txt"
+
 # ── Icon ──
 if [ -f "$PROJECT_DIR/assets/linguataxi.icns" ]; then
     cp "$PROJECT_DIR/assets/linguataxi.icns" "$APP_BUNDLE/Contents/Resources/"

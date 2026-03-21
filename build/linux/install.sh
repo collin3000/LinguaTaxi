@@ -141,6 +141,9 @@ echo ""
 echo "  Downloading speech recognition model..."
 "$VENV/bin/python3" "$APP_DIR/download_models.py" || echo "  WARNING: Model download failed. You can download later from the app."
 
+# ── Write edition marker ──
+echo "Linux" > "$APP_DIR/edition.txt"
+
 # ── Create launch script ──
 cat > "$APP_DIR/linguataxi" << 'LAUNCHER'
 #!/bin/bash
