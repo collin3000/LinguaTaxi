@@ -5,6 +5,7 @@ Desktop launcher with server management and browser integration.
 """
 
 import json, os, platform, queue, re, shutil, signal, subprocess, sys, threading, time, webbrowser
+import urllib.request, urllib.error
 from pathlib import Path
 
 import tkinter as tk
@@ -32,6 +33,17 @@ _edition_file = APP_DIR / "edition.txt"
 EDITION = _edition_file.read_text().strip() if _edition_file.exists() else "Dev"
 
 GITHUB_REPO = "TheColliny/LinguaTaxi"
+
+def _parse_version(tag):
+    """Parse 'vX.Y.Z' or 'X.Y.Z' into (X, Y, Z) tuple. Returns None on failure."""
+    tag = tag.strip().lstrip("v")
+    try:
+        parts = tuple(int(x) for x in tag.split("."))
+        if len(parts) == 3:
+            return parts
+    except (ValueError, AttributeError):
+        pass
+    return None
 
 SERVER_PY = APP_DIR / "server.py"
 
@@ -1899,9 +1911,83 @@ class LinguaTaxiApp(tk.Tk):
         self.settings["check_for_updates"] = self.update_check_var.get()
         save_settings(self.settings)
 
+    def _check_github_release(self):
+        """Fetch latest release from GitHub. Returns (tag, assets, body) or None."""
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+        req = urllib.request.Request(url, headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": f"LinguaTaxi/{VERSION}",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode())
+                return data.get("tag_name", ""), data.get("assets", []), data.get("body", "")
+        except (urllib.error.HTTPError, urllib.error.URLError, OSError, ValueError):
+            return None
+
+    def _find_asset_url(self, assets, tag):
+        """Find the download URL for the current edition's installer."""
+        version = tag.lstrip("v")
+        patterns = {
+            "GPU": f"LinguaTaxi-GPU-Setup-{version}.exe",
+            "CPU": f"LinguaTaxi-CPU-Setup-{version}.exe",
+            "macOS": f"LinguaTaxi-{version}.dmg",
+            "Linux": f"LinguaTaxi-{version}-linux.tar.gz",
+        }
+        target = patterns.get(EDITION)
+        if not target:
+            return None, None
+        for asset in assets:
+            if asset.get("name") == target:
+                return asset["browser_download_url"], target
+        return None, None
+
     def _check_for_updates_manual(self):
         """Manual update check triggered by button click."""
-        messagebox.showinfo("Check for Updates", "Not yet implemented.", parent=self)
+        self._do_update_check(manual=True)
+
+    def _do_update_check(self, manual=False):
+        """Run update check in background thread, show result on main thread."""
+        def _worker():
+            result = self._check_github_release()
+            self.after(0, lambda: self._handle_update_result(result, manual))
+
+        threading.Thread(target=_worker, daemon=True).start()
+        if manual:
+            self._log_system("Checking for updates...")
+
+    def _handle_update_result(self, result, manual):
+        """Process update check result on the main thread."""
+        if result is None:
+            if manual:
+                messagebox.showinfo("Check for Updates",
+                    "Could not reach GitHub. Check your internet connection\n"
+                    "or try again later (rate limit: 60 requests/hour).",
+                    parent=self)
+            return
+
+        tag, assets, body = result
+        remote_ver = _parse_version(tag)
+        local_ver = _parse_version(VERSION)
+
+        if remote_ver is None or local_ver is None:
+            if manual:
+                messagebox.showinfo("Check for Updates",
+                    f"Could not parse version: remote={tag}, local={VERSION}",
+                    parent=self)
+            return
+
+        if remote_ver <= local_ver:
+            if manual:
+                messagebox.showinfo("Check for Updates",
+                    f"You're up to date! (v{VERSION})", parent=self)
+            return
+
+        # New version available — check if dismissed
+        if not manual and self.settings.get("dismissed_version") == tag:
+            return
+
+        self._show_update_dialog(tag, assets)
 
     # ── Cleanup ──
 
