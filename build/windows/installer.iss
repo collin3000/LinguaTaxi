@@ -169,13 +169,39 @@ Filename: "{cmd}"; Parameters: "/C taskkill /F /IM pythonw.exe /FI ""WINDOWTITLE
 // We rewrite pyvenv.cfg to point to the installed Python location.
 // This takes milliseconds and is invisible to the user.
 
+function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo,
+  MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
+var
+  PrevVersion: String;
+begin
+  // Check if upgrading from a previous version
+  if RegQueryStringValue(HKLM,
+       'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1',
+       'DisplayVersion', PrevVersion) then
+  begin
+    if PrevVersion <> '{#MyAppVersion}' then
+      Result := 'Upgrading LinguaTaxi from v' + PrevVersion + ' to v{#MyAppVersion}.' + NewLine + NewLine +
+                'Your models, transcripts, and settings will be preserved.' + NewLine +
+                'Only program files will be updated.' + NewLine + NewLine;
+  end;
+  // Append standard memo content
+  if MemoDirInfo <> '' then
+    Result := Result + MemoDirInfo + NewLine + NewLine;
+  if MemoGroupInfo <> '' then
+    Result := Result + MemoGroupInfo + NewLine + NewLine;
+  if MemoTasksInfo <> '' then
+    Result := Result + MemoTasksInfo + NewLine;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   CfgPath: String;
   PythonHome: String;
+  EditionPath: String;
 begin
   if CurStep = ssPostInstall then
   begin
+    // Fix venv paths
     CfgPath := ExpandConstant('{app}\venv\pyvenv.cfg');
     PythonHome := ExpandConstant('{app}\python');
     SaveStringToFile(CfgPath,
@@ -183,6 +209,14 @@ begin
       'include-system-site-packages = false' + #13#10 +
       'version = 3.11.9' + #13#10,
       False);
+
+    // Write edition.txt (ISPP #if is evaluated at compile time, not runtime)
+    EditionPath := ExpandConstant('{app}\edition.txt');
+  #if EDITION == "Full"
+    SaveStringToFile(EditionPath, 'GPU', False);
+  #else
+    SaveStringToFile(EditionPath, 'CPU', False);
+  #endif
   end;
 end;
 
