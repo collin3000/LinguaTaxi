@@ -105,6 +105,18 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 .prev-footer{text-align:center;margin-top:auto}
 .prev-footer img{max-height:35px;border-radius:3px}
 .badge{font-size:10px;color:rgba(255,255,255,.45);text-align:center}
+
+/* Source rows */
+.source-list{margin:4px 0}
+.source-row{display:flex;align-items:center;padding:6px 8px;border:2px solid transparent;border-radius:6px;margin:2px 0;cursor:pointer;transition:border-color 0.2s}
+.source-focused{border-color:#4FC3F7;background:rgba(79,195,247,0.08)}
+.source-row:hover{border-color:#4FC3F755}
+.color-swatch{width:20px;height:20px;border-radius:4px;border:1px solid #666;cursor:pointer;margin-right:8px;flex-shrink:0}
+.source-name{background:transparent;border:1px solid #444;color:inherit;border-radius:4px;padding:2px 6px;flex:1;font-size:0.9em}
+.source-name:focus{border-color:#4FC3F7;outline:none}
+.source-device{color:#888;font-size:0.8em;margin-left:8px;white-space:nowrap}
+.spbtn-add{border-style:dashed;opacity:0.5}
+.spbtn-add:hover{opacity:1}
 </style>
 </head>
 <body>
@@ -166,11 +178,17 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 
   <!-- Speakers -->
   <div class="card">
+    <div class="section-label" style="margin-top:12px">Audio Sources</div>
+    <div id="sourceList" class="source-list"></div>
+    <div class="section-label" style="margin-top:8px">Speakers</div>
     <span class="clbl">Speakers (keys 1-9, 0=none, double-click to edit)</span>
     <div class="spgrid" id="spGrid"></div>
     <div class="row">
       <input type="text" id="iNewSp" placeholder="Add speaker..." onkeydown="if(event.key==='Enter')addSp()">
       <button class="btn btn-g" onclick="addSp()">Add</button>
+    </div>
+    <div id="resetContainer" style="margin-top:8px">
+      <button class="btn" onclick="resetSpeakers()">Reset Speakers</button>
     </div>
   </div>
 
@@ -251,6 +269,8 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 <script>
 let ws=null, recon=0, cfg={};
 let speakers=[], activeSp=0, editingSpeakerIdx=-1;
+let sources=[];  // [{id, name, speaker, color}]
+let focusedSourceId=0;
 let palette=[], bgOpts=[], fontOpts=[], srcLangs={}, tgtLangs={};
 let translations=[]; // [{lang, color, mode}]
 let transCount=1;
@@ -729,12 +749,61 @@ function buildColorSwatches(){
   }
 }
 
+// ── Source list ──
+function buildSourceList(){
+    const el=document.getElementById('sourceList');
+    if(!el)return;
+    let h='';
+    sources.forEach(s=>{
+        const focused=s.id===focusedSourceId?' source-focused':'';
+        const col=s.color||getComputedStyle(document.body).color;
+        h+=`<div class="source-row${focused}" onclick="focusSource(${s.id})">
+            <span class="color-swatch" style="background:${esc(col)}"
+                  onclick="event.stopPropagation();openColorPicker(${s.id})" title="Change color"></span>
+            <input class="source-name" value="${esc(s.speaker||s.name)}"
+                   onchange="renameSource(${s.id},this.value)"
+                   onclick="event.stopPropagation()">
+            <span class="source-device">${esc(s.name)}</span>
+        </div>`;
+    });
+    el.innerHTML=h;
+}
+
+function focusSource(id){
+    focusedSourceId=id;
+    buildSourceList();
+}
+
+function renameSource(id, newName){
+    if(ws&&ws.readyState===1){
+        ws.send(JSON.stringify({type:'set_speaker',speaker:newName,source_id:id}));
+    }
+    const s=sources.find(x=>x.id===id);
+    if(s) s.speaker=newName;
+    buildSourceList();
+}
+
+// Color picker stub (Task 8 will implement full version)
+function openColorPicker(sourceId){
+    const color=prompt('Enter hex color (e.g. #FF5722):');
+    if(color&&/^#[0-9A-Fa-f]{6}$/.test(color)){
+        if(ws&&ws.readyState===1){
+            ws.send(JSON.stringify({type:'set_speaker',speaker:'',source_id:sourceId,color:color}));
+        }
+        const s=sources.find(x=>x.id===sourceId);
+        if(s) s.color=color;
+        buildSourceList();
+    }
+}
+
 // ── Speakers ──
 function buildSpeakerBtns(){
   const el=document.getElementById('spGrid');
+  if(!el)return;
   let h=`<button class="spbtn spwide${activeSp===0?' act':''}" onclick="setSp(0)">No Label<span class="hk">0</span></button>`;
   speakers.forEach((n,i)=>{
     const idx=i+1;
+    const hk=idx<=9?`<span class="hk">${idx}</span>`:'';
     if(editingSpeakerIdx===idx){
       // Edit mode: inline form with name, key select, save, remove
       const opts=speakers.map((_,j)=>`<option value="${j+1}"${j+1===idx?' selected':''}>Key ${j+1}</option>`).join('');
@@ -747,9 +816,13 @@ function buildSpeakerBtns(){
         <button class="btn btn-g" onclick="cancelSpEdit()" title="Cancel">Esc</button>
       </div>`;
     } else {
-      h+=`<button class="spbtn${activeSp===idx?' act':''}" onclick="setSp(${idx})" ondblclick="startSpEdit(event,${idx})">${esc(n)}<span class="hk">${idx}</span></button>`;
+      h+=`<button class="spbtn${activeSp===idx?' act':''}" onclick="setSp(${idx})" ondblclick="startSpEdit(event,${idx})">${esc(n)}${hk}</button>`;
     }
   });
+  // Show "+" slot if under 50
+  if(speakers.length<50){
+    h+=`<button class="spbtn spbtn-add" onclick="document.getElementById('iNewSp').focus()">+</button>`;
+  }
   el.innerHTML=h;
   if(editingSpeakerIdx>0){
     const inp=document.getElementById('spEditName');
@@ -762,11 +835,13 @@ function setSp(idx){
   const name=(idx>0&&idx<=speakers.length)?speakers[idx-1]:'';
   document.getElementById('pSpeaker').textContent=name;
   buildSpeakerBtns();
-  if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'set_speaker',speaker:name}));
+  if(ws&&ws.readyState===1)ws.send(JSON.stringify({
+    type:'set_speaker',speaker:name,source_id:focusedSourceId
+  }));
 }
 function addSp(){
   const inp=document.getElementById('iNewSp');
-  const n=inp.value.trim();if(!n||speakers.length>=9)return;
+  const n=inp.value.trim();if(!n||speakers.length>=50)return;
   speakers.push(n);inp.value='';buildSpeakerBtns();saveAll();
 }
 function startSpEdit(e,idx){
@@ -805,6 +880,30 @@ function removeSp(idx){
 function cancelSpEdit(){
   editingSpeakerIdx=-1;
   buildSpeakerBtns();
+}
+
+let resetTimeout=null;
+function resetSpeakers(){
+    const c=document.getElementById('resetContainer');
+    c.innerHTML=`<span style="color:#FFD54F">Confirm reset? </span>
+        <button class="btn btn-r" onclick="confirmReset()">Yes</button>
+        <button class="btn" onclick="cancelReset()">No</button>`;
+    resetTimeout=setTimeout(cancelReset,10000);
+}
+function confirmReset(){
+    clearTimeout(resetTimeout);
+    fetch('/api/speakers/reset',{method:'POST'});
+    speakers=[];
+    activeSp=0;
+    buildSpeakerBtns();
+    sources.forEach(s=>{s.speaker='';s.color='';});
+    buildSourceList();
+    cancelReset();
+}
+function cancelReset(){
+    clearTimeout(resetTimeout);
+    document.getElementById('resetContainer').innerHTML=
+        `<button class="btn" onclick="resetSpeakers()">Reset Speakers</button>`;
 }
 
 let translationPaused = true;
@@ -1139,6 +1238,32 @@ function connect(){
     }
     else if(m.type==='clear_captions'){
       prevClearAll();
+    }
+    else if(m.type==='source_list'){
+      sources=m.sources||[];
+      if(sources.length>0) focusedSourceId=sources[0].id;
+      buildSourceList();
+    }
+    else if(m.type==='source_added'){
+      sources.push(m.source);
+      buildSourceList();
+    }
+    else if(m.type==='source_removed'){
+      sources=sources.filter(s=>s.id!==m.source_id);
+      if(focusedSourceId===m.source_id&&sources.length>0)
+          focusedSourceId=sources[0].id;
+      buildSourceList();
+    }
+    else if(m.type==='speaker_change'){
+      // Update source speaker in local state
+      if(m.source_id!==undefined){
+        const s=sources.find(x=>x.id===m.source_id);
+        if(s){
+          s.speaker=m.speaker;
+          if(m.color) s.color=m.color;
+        }
+        buildSourceList();
+      }
     }
   };
   ws.onclose=()=>{
