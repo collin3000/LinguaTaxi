@@ -1,6 +1,9 @@
 """
 Silero Language Classifier 95 — ONNX wrapper for spoken language detection.
-MIT licensed, 4.7MB model, <1ms inference, 95 languages.
+MIT licensed, ~16 MB ONNX model, <1ms inference, 95 languages.
+
+The original model was removed from snakers4/silero-vad in v4.0.
+We use an archived copy from HuggingFace (deepghs/silero-lang95-onnx).
 """
 
 import logging
@@ -16,10 +19,13 @@ log = logging.getLogger("lang_detect")
 _MODELS_DIR = Path(__file__).parent / "models"
 _MODEL_SUBDIR = "silero-lang-detect"
 
-# Silero lang_detector_95 ONNX model — original URL is dead (removed from silero-vad repo).
-# The model can still be obtained from archived copies or manual placement.
-_MODEL_URL = "https://models.silero.ai/models/langs/lang_detector_95.onnx"
-_LANG_DICT_URL = "https://raw.githubusercontent.com/snakers4/silero-vad/master/files/lang_dict_95.json"
+# The actual filename is lang_classifier_95.onnx (not lang_detector_95).
+# Archived on HuggingFace after removal from silero-vad repo.
+_MODEL_FILENAME = "lang_classifier_95.onnx"
+_DICT_FILENAME = "lang_dict_95.json"
+
+_MODEL_URL = "https://huggingface.co/deepghs/silero-lang95-onnx/resolve/main/lang_classifier_95.onnx"
+_LANG_DICT_URL = "https://huggingface.co/deepghs/silero-lang95-onnx/resolve/main/lang_dict_95.json"
 
 _session = None  # ONNX InferenceSession (lazy loaded)
 _lang_dict = None  # {index: lang_code} mapping
@@ -38,24 +44,24 @@ def _model_dir():
 
 
 def download_model(models_dir=None):
-    """Download the Silero lang_detector_95 ONNX model if not present."""
+    """Download the Silero lang_classifier_95 ONNX model if not present."""
     import requests
 
     d = Path(models_dir) / _MODEL_SUBDIR if models_dir else _model_dir()
     d.mkdir(parents=True, exist_ok=True)
 
-    onnx_path = d / "lang_detector_95.onnx"
-    dict_path = d / "lang_dict_95.json"
+    onnx_path = d / _MODEL_FILENAME
+    dict_path = d / _DICT_FILENAME
 
     if not onnx_path.exists():
         log.info(f"Downloading Silero language detection model to {d}")
-        r = requests.get(_MODEL_URL, timeout=60)
+        r = requests.get(_MODEL_URL, timeout=120, allow_redirects=True)
         r.raise_for_status()
         onnx_path.write_bytes(r.content)
         log.info(f"Downloaded {onnx_path.name} ({len(r.content) / 1e6:.1f} MB)")
 
     if not dict_path.exists():
-        r = requests.get(_LANG_DICT_URL, timeout=30)
+        r = requests.get(_LANG_DICT_URL, timeout=30, allow_redirects=True)
         r.raise_for_status()
         dict_path.write_text(r.text, encoding="utf-8")
         log.info(f"Downloaded {dict_path.name}")
@@ -79,8 +85,8 @@ def _load():
         if _load_failed:
             raise RuntimeError("Silero language detection model unavailable (previous load failed)")
 
-        onnx_path = _model_dir() / "lang_detector_95.onnx"
-        dict_path = _model_dir() / "lang_dict_95.json"
+        onnx_path = _model_dir() / _MODEL_FILENAME
+        dict_path = _model_dir() / _DICT_FILENAME
 
         if not onnx_path.exists():
             try:
@@ -89,7 +95,7 @@ def _load():
                 _load_failed = True
                 log.warning(f"Silero language detection model download failed: {e} "
                             "— falling back to Whisper built-in detection. "
-                            "To use Silero, manually place lang_detector_95.onnx in "
+                            f"To use Silero, manually place {_MODEL_FILENAME} in "
                             f"{_model_dir()}")
                 raise
 
@@ -157,4 +163,4 @@ def detect_language(audio, candidates=None):
 
 def is_available():
     """Check if the ONNX model file exists (without loading it)."""
-    return (_model_dir() / "lang_detector_95.onnx").exists()
+    return (_model_dir() / _MODEL_FILENAME).exists()
