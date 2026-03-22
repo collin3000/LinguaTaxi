@@ -15,7 +15,7 @@ from tkinter import ttk, filedialog, messagebox
 
 APP_NAME = "LinguaTaxi"
 APP_FULL = "LinguaTaxi — Live Caption & Translation"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 IS_WIN = sys.platform == "win32"
 IS_MAC = sys.platform == "darwin"
