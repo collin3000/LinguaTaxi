@@ -65,9 +65,7 @@ Name: "bulgarian"; MessagesFile: "compiler:Languages\Bulgarian.isl"
 Name: "czech"; MessagesFile: "compiler:Languages\Czech.isl"
 Name: "danish"; MessagesFile: "compiler:Languages\Danish.isl"
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"
-Name: "greek"; MessagesFile: "compiler:Languages\Greek.isl"
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
-Name: "estonian"; MessagesFile: "compiler:Languages\Estonian.isl"
 Name: "finnish"; MessagesFile: "compiler:Languages\Finnish.isl"
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 Name: "hungarian"; MessagesFile: "compiler:Languages\Hungarian.isl"
@@ -78,14 +76,12 @@ Name: "dutch"; MessagesFile: "compiler:Languages\Dutch.isl"
 Name: "norwegian"; MessagesFile: "compiler:Languages\Norwegian.isl"
 Name: "polish"; MessagesFile: "compiler:Languages\Polish.isl"
 Name: "portuguese"; MessagesFile: "compiler:Languages\Portuguese.isl"
-Name: "romanian"; MessagesFile: "compiler:Languages\Romanian.isl"
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Name: "slovak"; MessagesFile: "compiler:Languages\Slovak.isl"
 Name: "slovenian"; MessagesFile: "compiler:Languages\Slovenian.isl"
 Name: "swedish"; MessagesFile: "compiler:Languages\Swedish.isl"
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
 Name: "ukrainian"; MessagesFile: "compiler:Languages\Ukrainian.isl"
-Name: "chinese_simplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [CustomMessages]
 ; Task descriptions
@@ -105,6 +101,23 @@ TunedDe=German tuned model (~3.1 GB download, ~2.9 GB on disk)
 TunedAr=Arabic tuned model (~3.1 GB download, ~2.9 GB on disk)
 TunedJa=Japanese tuned model (~1.5 GB download, ~1.5 GB on disk)
 TunedZh=Chinese tuned model (~3.1 GB download, ~2.9 GB on disk)
+; Vosk CPU language models
+DownloadVosk=Download Vosk CPU language models (for bi-directional translation)
+VoskDe=German — Vosk (~45 MB download)
+VoskFr=French — Vosk (~41 MB download)
+VoskEs=Spanish — Vosk (~39 MB download)
+VoskRu=Russian — Vosk (~45 MB download)
+VoskAr=Arabic — Vosk (~318 MB download)
+VoskJa=Japanese — Vosk (~48 MB download)
+VoskZh=Chinese — Vosk (~42 MB download)
+VoskModels=Vosk CPU Language Models (for bi-directional mode):
+DownloadingVoskDe=Downloading German Vosk model (~45 MB)...
+DownloadingVoskFr=Downloading French Vosk model (~41 MB)...
+DownloadingVoskEs=Downloading Spanish Vosk model (~39 MB)...
+DownloadingVoskRu=Downloading Russian Vosk model (~45 MB)...
+DownloadingVoskAr=Downloading Arabic Vosk model (~318 MB)...
+DownloadingVoskJa=Downloading Japanese Vosk model (~48 MB)...
+DownloadingVoskZh=Downloading Chinese Vosk model (~42 MB)...
 ; Group descriptions
 AdditionalShortcuts=Additional shortcuts:
 ModelUpdates=Model updates:
@@ -144,6 +157,14 @@ Name: "tuned\ar"; Description: "{cm:TunedAr}"; Flags: unchecked
 Name: "tuned\ja"; Description: "{cm:TunedJa}"; Flags: unchecked
 Name: "tuned\zh"; Description: "{cm:TunedZh}"; Flags: unchecked
 #endif
+Name: "vosk_lang"; Description: "{cm:DownloadVosk}"; GroupDescription: "{cm:VoskModels}"; Flags: unchecked
+Name: "vosk_lang\de"; Description: "{cm:VoskDe}"; Flags: unchecked
+Name: "vosk_lang\fr"; Description: "{cm:VoskFr}"; Flags: unchecked
+Name: "vosk_lang\es"; Description: "{cm:VoskEs}"; Flags: unchecked
+Name: "vosk_lang\ru"; Description: "{cm:VoskRu}"; Flags: unchecked
+Name: "vosk_lang\ar"; Description: "{cm:VoskAr}"; Flags: unchecked
+Name: "vosk_lang\ja"; Description: "{cm:VoskJa}"; Flags: unchecked
+Name: "vosk_lang\zh"; Description: "{cm:VoskZh}"; Flags: unchecked
 
 [Files]
 ; ── Core application ──
@@ -155,6 +176,8 @@ Source: "..\..\offline_translate.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\display.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\operator.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\dictation.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\bidirectional.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\lang_detect.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -217,6 +240,14 @@ Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translat
 Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-opus RU --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\opus_ru; StatusMsg: "{cm:DownloadingOpusRu}"; Flags: runhidden
 Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\offline_translate.py"" --download-m2m --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: offline\m2m100; StatusMsg: "{cm:DownloadingM2m}"; Flags: runhidden
 #endif
+; Vosk CPU language models (available in both editions)
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\download_models.py"" --vosk-lang de --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: vosk_lang\de; StatusMsg: "{cm:DownloadingVoskDe}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\download_models.py"" --vosk-lang fr --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: vosk_lang\fr; StatusMsg: "{cm:DownloadingVoskFr}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\download_models.py"" --vosk-lang es --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: vosk_lang\es; StatusMsg: "{cm:DownloadingVoskEs}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\download_models.py"" --vosk-lang ru --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: vosk_lang\ru; StatusMsg: "{cm:DownloadingVoskRu}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\download_models.py"" --vosk-lang ar --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: vosk_lang\ar; StatusMsg: "{cm:DownloadingVoskAr}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\download_models.py"" --vosk-lang ja --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: vosk_lang\ja; StatusMsg: "{cm:DownloadingVoskJa}"; Flags: runhidden
+Filename: "{app}\venv\Scripts\python.exe"; Parameters: """{app}\download_models.py"" --vosk-lang zh --models-dir ""{app}\models"""; WorkingDir: "{app}"; Tasks: vosk_lang\zh; StatusMsg: "{cm:DownloadingVoskZh}"; Flags: runhidden
 ; Launch after install
 Filename: "{app}\venv\Scripts\pythonw.exe"; Parameters: """{app}\launcher.pyw"""; WorkingDir: "{app}"; Description: "Launch {#MyAppShortName}"; Flags: nowait postinstall skipifsilent
 
