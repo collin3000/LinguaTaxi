@@ -13,7 +13,7 @@ on:
 
 env:
   PYTHON_VER: "3.11.9"
-  APP_VERSION: "1.0.0"
+  APP_VERSION: "1.0.1"
 
 jobs:
   # ════════════════════════════════════════
@@ -51,7 +51,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/windows/models_prebuilt
-          key: models-whisper-v3-turbo-vosk-small
+          key: models-whisper-v3-turbo-vosk-small-silero-lang95
 
       - name: Download and install Python
         run: |
@@ -81,6 +81,8 @@ jobs:
             & .\venv_lite\Scripts\pip.exe install vosk -q
             Write-Host "  Installing offline translation packages..."
             & .\venv_lite\Scripts\pip.exe install sentencepiece ctranslate2 huggingface_hub -q
+            Write-Host "  Installing onnxruntime (language detection)..."
+            & .\venv_lite\Scripts\pip.exe install onnxruntime -q
             Write-Host "  [OK] Lite venv ready"
           }
 
@@ -100,6 +102,8 @@ jobs:
             & .\venv_full\Scripts\pip.exe install vosk -q
             Write-Host "  Installing offline translation packages..."
             & .\venv_full\Scripts\pip.exe install sentencepiece ctranslate2 huggingface_hub -q
+            Write-Host "  Installing onnxruntime (language detection)..."
+            & .\venv_full\Scripts\pip.exe install onnxruntime -q
             Write-Host "  Installing model conversion tools..."
             & .\venv_full\Scripts\pip.exe install torch --index-url https://download.pytorch.org/whl/cpu -q
             & .\venv_full\Scripts\pip.exe install transformers -q
@@ -136,6 +140,19 @@ jobs:
           zipfile.ZipFile('models_prebuilt/vosk.zip').extractall('models_prebuilt')
           os.unlink('models_prebuilt/vosk.zip')
           print('  [OK] Vosk model downloaded')
+          "@
+          }
+          # Silero language detection model (MIT, ~16 MB)
+          if (Test-Path "models_prebuilt\silero-lang-detect\lang_classifier_95.onnx") {
+            Write-Host "  [OK] Silero lang detect already cached"
+          } else {
+            Write-Host "  Downloading Silero language detection model (~16 MB)..."
+            New-Item -ItemType Directory -Path "models_prebuilt\silero-lang-detect" -Force | Out-Null
+            & .\python_dist\python.exe -c @"
+          import urllib.request
+          urllib.request.urlretrieve('https://huggingface.co/deepghs/silero-lang95-onnx/resolve/main/lang_classifier_95.onnx', r'models_prebuilt\silero-lang-detect\lang_classifier_95.onnx')
+          urllib.request.urlretrieve('https://huggingface.co/deepghs/silero-lang95-onnx/resolve/main/lang_dict_95.json', r'models_prebuilt\silero-lang-detect\lang_dict_95.json')
+          print('  [OK] Silero lang detect downloaded')
           "@
           }
 
@@ -259,10 +276,10 @@ jobs:
 
             | Platform | File | Description |
             |----------|------|-------------|
-            | **Windows (GPU)** | `LinguaTaxi-GPU-Setup-1.0.0.exe` | Best accuracy — NVIDIA GPU (CUDA downloaded during install) |
-            | **Windows (CPU)** | `LinguaTaxi-CPU-Setup-1.0.0.exe` | CPU only — no GPU required |
-            | **macOS** | `LinguaTaxi-1.0.0.dmg` | Universal — Apple Silicon (MLX) or Intel (Vosk) |
-            | **Linux** | `LinguaTaxi-1.0.0-linux.tar.gz` | Extract and run `./install.sh` |
+            | **Windows (GPU)** | `LinguaTaxi-GPU-Setup-1.0.1.exe` | Best accuracy — NVIDIA GPU (CUDA downloaded during install) |
+            | **Windows (CPU)** | `LinguaTaxi-CPU-Setup-1.0.1.exe` | CPU only — no GPU required |
+            | **macOS** | `LinguaTaxi-1.0.1.dmg` | Universal — Apple Silicon (MLX) or Intel (Vosk) |
+            | **Linux** | `LinguaTaxi-1.0.1-linux.tar.gz` | Extract and run `./install.sh` |
 
             ## Requirements
             - **Windows**: Windows 10+ (64-bit). GPU edition needs NVIDIA GPU + internet during install.
