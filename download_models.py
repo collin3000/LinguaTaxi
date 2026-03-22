@@ -12,6 +12,22 @@ APP_DIR = Path(__file__).resolve().parent
 MODELS_DIR = APP_DIR / "models"
 MODELS_DIR.mkdir(exist_ok=True)
 
+# Multi-language Vosk model mapping: language code -> (model dir name, download URL)
+VOSK_MODEL_MAP = {
+    "en": ("vosk-model-small-en-us-0.15", "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"),
+    "de": ("vosk-model-small-de-0.15", "https://alphacephei.com/vosk/models/vosk-model-small-de-0.15.zip"),
+    "fr": ("vosk-model-small-fr-0.22", "https://alphacephei.com/vosk/models/vosk-model-small-fr-0.22.zip"),
+    "es": ("vosk-model-small-es-0.42", "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip"),
+    "ru": ("vosk-model-small-ru-0.22", "https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip"),
+    "it": ("vosk-model-small-it-0.22", "https://alphacephei.com/vosk/models/vosk-model-small-it-0.22.zip"),
+    "ja": ("vosk-model-small-ja-0.22", "https://alphacephei.com/vosk/models/vosk-model-small-ja-0.22.zip"),
+    "zh": ("vosk-model-small-cn-0.22", "https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip"),
+    "ar": ("vosk-model-ar-mgb2-0.4", "https://alphacephei.com/vosk/models/vosk-model-ar-mgb2-0.4.zip"),
+    "pt": ("vosk-model-small-pt-0.3", "https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip"),
+    "tr": ("vosk-model-small-tr-0.3", "https://alphacephei.com/vosk/models/vosk-model-small-tr-0.3.zip"),
+    "ko": ("vosk-model-small-ko-0.22", "https://alphacephei.com/vosk/models/vosk-model-small-ko-0.22.zip"),
+}
+
 
 def download_whisper_model():
     """Pre-download faster-whisper large-v3-turbo model to local models dir."""
@@ -53,37 +69,38 @@ def download_whisper_model():
         return False
 
 
-def download_vosk_model():
-    """Pre-download Vosk model."""
+def download_vosk_model(models_dir=None, lang="en"):
+    """Pre-download Vosk model for a specific language.
+
+    Args:
+        models_dir: Override the models directory (defaults to APP_DIR / "models")
+        lang: Language code (e.g., "en", "de", "fr"). Defaults to "en".
+    """
     import urllib.request, zipfile
 
-    # Download large model by default (better quality)
-    models = {
-        "large": {
-            "url": "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip",
-            "dir": "vosk-model-en-us-0.22",
-            "size": "~1.8 GB",
-        },
-        "small": {
-            "url": "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip",
-            "dir": "vosk-model-small-en-us-0.15",
-            "size": "~40 MB",
-        },
-    }
+    if models_dir is None:
+        models_dir = MODELS_DIR
+    else:
+        models_dir = Path(models_dir)
+        models_dir.mkdir(exist_ok=True, parents=True)
 
-    # Use small model to keep install fast; user can switch to large later
-    info = models["small"]
+    # Look up model info from VOSK_MODEL_MAP
+    if lang not in VOSK_MODEL_MAP:
+        print(f"\n  [ERROR] Unsupported language code: '{lang}'")
+        print(f"  Supported languages: {', '.join(sorted(VOSK_MODEL_MAP.keys()))}")
+        return False
 
-    model_path = MODELS_DIR / info["dir"]
+    model_dir_name, download_url = VOSK_MODEL_MAP[lang]
+    model_path = models_dir / model_dir_name
+    zip_path = models_dir / (model_dir_name + ".zip")
+
     if model_path.exists():
-        print(f"\n  [OK] Vosk model already downloaded: {info['dir']}")
+        print(f"\n  [OK] Vosk model already downloaded: {model_dir_name}")
         return True
 
-    zip_path = MODELS_DIR / (info["dir"] + ".zip")
-
     try:
-        print(f"\n  Downloading Vosk model ({info['size']})...")
-        print(f"  URL: {info['url']}\n")
+        print(f"\n  Downloading Vosk model for language '{lang}': {model_dir_name}")
+        print(f"  URL: {download_url}\n")
 
         def progress_hook(block_num, block_size, total_size):
             downloaded = block_num * block_size
@@ -93,12 +110,12 @@ def download_vosk_model():
                 total_mb = total_size / (1024 * 1024)
                 print(f"\r  {mb:.0f} / {total_mb:.0f} MB ({pct}%)", end="", flush=True)
 
-        urllib.request.urlretrieve(info["url"], str(zip_path), reporthook=progress_hook)
+        urllib.request.urlretrieve(download_url, str(zip_path), reporthook=progress_hook)
         print()  # newline after progress
 
         print(f"  Extracting...")
         with zipfile.ZipFile(str(zip_path), "r") as z:
-            z.extractall(str(MODELS_DIR))
+            z.extractall(str(models_dir))
 
         zip_path.unlink(missing_ok=True)
 
@@ -107,7 +124,7 @@ def download_vosk_model():
         model = vosk.Model(str(model_path))
         del model
 
-        print(f"\n  [OK] Vosk model '{info['dir']}' ready!")
+        print(f"\n  [OK] Vosk model '{model_dir_name}' ready!")
         return True
 
     except Exception as e:
@@ -164,5 +181,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="LinguaTaxi — Model Pre-Download")
     parser.add_argument("--backend", choices=["whisper", "vosk", "auto"], default="auto",
                         help="Which backend model to download (default: auto-detect)")
+    parser.add_argument("--vosk-lang", type=str, default=None,
+                        help="Download Vosk model for this language code (e.g., de, fr, ar)")
+    parser.add_argument("--models-dir", type=str, default=None,
+                        help="Override models directory path")
     args = parser.parse_args()
-    main(args.backend)
+
+    # If --vosk-lang is specified, download that language and exit
+    if args.vosk_lang:
+        models_dir = Path(args.models_dir) if args.models_dir else APP_DIR / "models"
+        print("=" * 50)
+        print("  LinguaTaxi — Vosk Model Download")
+        print("=" * 50)
+        download_vosk_model(models_dir, lang=args.vosk_lang)
+        print("\n" + "=" * 50)
+        print("  Download complete!")
+        print("=" * 50)
+    else:
+        main(args.backend)
