@@ -983,13 +983,17 @@ def _translate_all(text, msg_type, loop, max_slots=99, line_id=None, speaker_ove
     bidir = config.get("bidirectional_enabled", False)
     bidir_langs = config.get("bidirectional_langs", [])
 
+    # Fall back to input_lang for slot-skipping when detection didn't run
+    effective_src = source_lang or config.get("input_lang", "EN")
+
     for i, t in enumerate(translations):
         if i >= max_slots: break
 
-        # Smart routing for auto-managed bi-directional slots (0 and 1)
-        if bidir and i < 2 and len(bidir_langs) == 2 and source_lang:
+        # Smart routing for bi-directional slots: skip translating into the
+        # same language as the source (avoids wasting DeepL credits)
+        if bidir and i < 2 and len(bidir_langs) == 2:
             slot_target = bidir_langs[0] if i == 0 else bidir_langs[1]
-            src_base = source_lang.split("-")[0]
+            src_base = effective_src.split("-")[0]
             tgt_base = slot_target.split("-")[0]
             if src_base == tgt_base:
                 continue  # skip — source already in this slot's target language
