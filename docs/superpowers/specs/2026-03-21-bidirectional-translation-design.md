@@ -31,6 +31,32 @@ Audio → Buffer Loop → Silence Detected → Detect Language → Tag Segment
 
 Silero runs on CPU alongside any backend (<1ms overhead). For GPU/Whisper users, faster-whisper's built-in detection is also available. Detection is narrowed to the operator's 2 selected input languages for higher effective accuracy.
 
+### End-to-End Data Flow (detected_lang propagation)
+
+The `detected_lang` parameter must be threaded through the entire call chain:
+
+```
+_buffer_audio_loop:  detect_language(audio) → detected_lang
+  → _transcription_queue.put((source, buf, detected_lang))
+    → _transcription_worker:  source, buf, detected_lang = queue.get()
+      → transcribe_fn(buf, lang=detected_lang)  [signature change: add lang param]
+        → _broadcast_final(text, loop, source, detected_lang)  [signature change]
+          → WebSocket msg: {"type":"final", ..., "detected_lang":"ar"}
+          → _translate_all(text, line_id, loop, source_lang=detected_lang)  [signature change]
+            → _do_translate(text, slot, line_id, loop, source_lang=detected_lang)  [signature change]
+              → translate_text(text, target_lang, source_lang=detected_lang, mode=mode)
+```
+
+When bi-directional mode is off, `detected_lang` defaults to `None` at every hop, and each function falls back to `config.get("input_lang")` — preserving existing behavior. The queue tuple always uses 3 elements; the worker always unpacks 3.
+
+### Simultaneous Speech (Known Limitation)
+
+When both speakers talk at the same time over a single microphone, the audio contains mixed languages. Silero's detection on mixed audio will return low confidence. Behavior:
+- If confidence < 0.6: fall back to the last known language for that source
+- The resulting transcription may be partially garbled regardless of language choice — this is inherent to overlapping speech in any single-mic setup
+- **Best practice:** use separate microphones per speaker (separate audio sources), which isolates each language stream entirely. The operator panel already supports multiple audio sources.
+- This is documented as a known limitation in the operator guide, not a bug to fix.
+
 ## Section 1: Language Detection Layer
 
 ### Silero Integration (CPU path — all backends)
@@ -58,6 +84,9 @@ Silero runs on CPU alongside any backend (<1ms overhead). For GPU/Whisper users,
 - Each gets its own `KaldiRecognizer` instance, pre-initialized
 - Detection result routes audio to the correct recognizer
 - If the language changes between segments, the old recognizer is reset and the new one receives the audio
+- Model loading: both Vosk models are loaded when bi-directional mode is enabled (not at server startup). Loading a Vosk model takes 1-3 seconds — the operator panel shows a brief "Loading models..." status during this time
+- With 8 max sources × 2 recognizers = 16 KaldiRecognizer instances possible, but memory impact is minimal since recognizers share the underlying model object
+- When bi-directional mode is toggled off, the second Vosk model and its recognizers are unloaded to free memory
 
 ## Section 2: Transcription Pipeline Changes
 
@@ -112,7 +141,8 @@ Silero runs on CPU alongside any backend (<1ms overhead). For GPU/Whisper users,
 
 - Bi-directional slots use the same engine selection as today (DeepL, offline-OPUS, offline-M2M)
 - The source language parameter is now dynamic per segment instead of the static `config.input_lang`
-- `translate_text()` already accepts `source_lang` — it just needs to receive the segment's detected language instead of the global config value
+- `translate_text()` already accepts `source_lang` — the full call chain (`_broadcast_final` → `_translate_all` → `_do_translate` → `translate_text`) must thread `source_lang=detected_lang` at every hop (see End-to-End Data Flow above)
+- For DeepL target codes that require variants (e.g., EN→EN-US, PT→PT-BR, ZH→ZH-HANS): auto-managed bi-directional slots default to the most common variant; operator can override in the slot config if needed. The variant mapping is defined in a `DEEPL_TARGET_DEFAULTS` dict in `server.py`
 
 ## Section 4: Display & Broadcasting
 
@@ -166,6 +196,9 @@ Silero runs on CPU alongside any backend (<1ms overhead). For GPU/Whisper users,
 - When bi-directional mode is on, slots 0-1 show as locked/auto-managed with labels like "Arabic → English (auto)" and "English → Arabic (auto)"
 - The "Add Translation" controls start from slot 2, with the operator able to add up to 3 more observer languages
 - When bi-directional mode is toggled off, the auto-managed slots are removed and full manual control returns
+- In-flight translations in auto-managed slots are allowed to complete; no new translations are started for those slots after toggle-off
+- Existing caption lines on displays remain visible; only new segments follow the updated mode
+- Segments in the transcription queue with `detected_lang` set are still transcribed normally — the lang parameter is valid regardless of mode
 
 ### Config Persistence
 
@@ -222,4 +255,6 @@ Silero runs on CPU alongside any backend (<1ms overhead). For GPU/Whisper users,
 ### Dependencies added
 
 - `onnxruntime` — for Silero ONNX inference (lightweight, no PyTorch needed on CPU edition)
-- Silero lang_detector_95 ONNX model (~4.7MB) — downloaded on first use or bundled in installer
+- Silero lang_detector_95 ONNX model (~4.7MB) — stored in `MODELS_DIR/silero-lang-detect/`, downloaded on first use or bundled in installer
+- `onnxruntime` version floor: `>=1.16.0` (supports ONNX opset used by Silero). Use `onnxruntime` (CPU), not `onnxruntime-gpu`
+- If `onnxruntime` is unavailable at runtime: Whisper users fall back to faster-whisper's built-in `detect_language()`; Vosk-only users see an error prompting them to install onnxruntime
