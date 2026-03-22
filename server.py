@@ -1045,8 +1045,11 @@ def _make_audio_callback(source):
 
 
 def start_source_capture(source):
-    """Open audio stream for a single AudioSource. Runs in its own thread."""
+    """Open audio stream for a single AudioSource. Runs in its own thread.
+    Retries on failure with exponential backoff up to 30s, so a temporarily
+    unavailable device can recover without killing the source."""
     bs = int(SAMPLE_RATE * CHUNK_DURATION)
+    retry_delay = 2
     while source.active and not shutdown_event.is_set():
         source.restart_event.clear()
         try:
@@ -1055,6 +1058,7 @@ def start_source_capture(source):
                                blocksize=bs, device=source.device_index, callback=cb)
             source.stream = s
             s.start()
+            retry_delay = 2  # reset on successful open
             log.info(f"Audio capture started for [{source.name}] (device: {source.device_index or 'default'})")
             while source.active and not shutdown_event.is_set() and not source.restart_event.is_set():
                 shutdown_event.wait(0.3)
@@ -1068,7 +1072,11 @@ def start_source_capture(source):
         except Exception as e:
             log.error(f"Audio capture error [{source.name}]: {e}")
             source.stream = None
-            break
+            if not source.active or shutdown_event.is_set():
+                break
+            log.info(f"[{source.name}] retrying in {retry_delay}s...")
+            shutdown_event.wait(retry_delay)
+            retry_delay = min(retry_delay * 2, 30)
 
 
 def start_audio_capture(dev_idx=None):
