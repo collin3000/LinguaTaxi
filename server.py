@@ -106,6 +106,13 @@ DEEPL_TO_WHISPER = {
 DEEPL_TARGET_DEFAULTS = {
     "EN": "EN-US", "PT": "PT-BR", "ZH": "ZH-HANS",
 }
+# Vosk model directory name patterns → Whisper/DeepL language codes
+VOSK_DIR_LANGS = {
+    "en-us": "en", "en-in": "en", "de": "de", "fr": "fr", "es": "es",
+    "ru": "ru", "it": "it", "ja": "ja", "cn": "zh", "zh": "zh",
+    "ar": "ar", "pt": "pt", "tr": "tr", "ko": "ko", "nl": "nl",
+    "uk": "uk", "pl": "pl", "hi": "hi", "fa": "fa", "ca": "ca",
+}
 
 COLOR_PALETTE = [
     {"id":"white","hex":"#FFFFFF","name":"White"},
@@ -593,6 +600,23 @@ class WhisperBackend(SpeechBackend):
                 src.buffer_thread = t
 
 
+def _load_vosk_bidir_model(lang_code):
+    """Load a Vosk model for the given DeepL language code."""
+    target_lang = DEEPL_TO_WHISPER.get(lang_code, lang_code.lower())
+    for d in MODELS_DIR.glob("vosk-model-*"):
+        if not d.is_dir():
+            continue
+        name = d.name.lower()
+        for pattern, code in VOSK_DIR_LANGS.items():
+            if f"-{pattern}" in name and code == target_lang:
+                import vosk
+                vosk.SetLogLevel(-1)
+                log.info(f"Loading Vosk model for {lang_code}: {d.name}")
+                return vosk.Model(str(d))
+    log.error(f"No Vosk model found for language: {lang_code}")
+    return None
+
+
 class VoskBackend(SpeechBackend):
     MODELS = {
         "small": {"url":"https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip",
@@ -614,6 +638,8 @@ class VoskBackend(SpeechBackend):
         mp = MODELS_DIR / info["dir"]
         if not mp.exists(): self._dl(info, mp)
         self._model = vosk.Model(str(mp)); self._name = info["dir"]
+        self._bidir_model = None   # secondary Vosk model for bi-directional mode
+        self._bidir_lang = None    # DeepL lang code of secondary model
 
     def _dl(self, info, mp):
         zp = MODELS_DIR / (info["dir"] + ".zip")
@@ -653,10 +679,16 @@ class VoskBackend(SpeechBackend):
                 src.buffer_thread = t
 
     def _vosk_source_loop(self, loop, source):
-        """Per-source Vosk recognition loop. Each source gets its own KaldiRecognizer."""
+        """Per-source Vosk recognition loop. Each source gets its own KaldiRecognizer.
+        Supports dual recognizers for bi-directional mode."""
         import vosk
         rec = vosk.KaldiRecognizer(self._model, SAMPLE_RATE)
+        bidir_rec = None         # secondary recognizer (lazy-loaded)
+        active_rec = rec         # currently active recognizer
+        bidir_was_on = False     # track toggle state
         last_partial = ""; last_pt = 0; in_speech = False
+        lang_detect_buf = np.empty((0,1), dtype=np.float32)  # audio accumulator for lang detection
+        last_lang_check = 0      # timestamp of last language detection call
         while not shutdown_event.is_set() and source.active:
             try:
                 chunk = source.queue.get(timeout=0.5)
@@ -666,9 +698,45 @@ class VoskBackend(SpeechBackend):
             # ── Skip processing when captioning is paused (unless dictation is active) ──
             if captioning_paused and not dictation_active:
                 if in_speech:
-                    rec.FinalResult()  # reset recognizer state
+                    active_rec.FinalResult()  # reset recognizer state
                     last_partial = ""; in_speech = False
+                lang_detect_buf = np.empty((0,1), dtype=np.float32)
                 continue
+
+            # ── Bi-directional toggle handling ──
+            bidir_on = config.get("bidirectional_enabled", False)
+            bidir_langs = config.get("bidirectional_langs", [])
+            if bidir_on and len(bidir_langs) == 2 and not bidir_was_on:
+                # Toggled ON: load secondary model
+                # Determine which language is "other" (not the primary model's language)
+                primary_lang = config.get("input_lang", "EN")
+                secondary_lang = bidir_langs[1] if bidir_langs[0] == primary_lang else bidir_langs[0]
+                if self._bidir_model is None or self._bidir_lang != secondary_lang:
+                    self._bidir_model = _load_vosk_bidir_model(secondary_lang)
+                    self._bidir_lang = secondary_lang
+                if self._bidir_model:
+                    bidir_rec = vosk.KaldiRecognizer(self._bidir_model, SAMPLE_RATE)
+                    log.info(f"[src {source.id}] Vosk bi-directional enabled: "
+                             f"{primary_lang} + {secondary_lang}")
+                else:
+                    bidir_rec = None
+                bidir_was_on = True
+            elif not bidir_on and bidir_was_on:
+                # Toggled OFF: free secondary model, revert to primary recognizer
+                if active_rec is bidir_rec and bidir_rec is not None:
+                    # Force-finalize secondary before switching back
+                    result = json.loads(bidir_rec.FinalResult())
+                    text = result.get("text", "").strip()
+                    if text:
+                        _broadcast_final(text, loop, source, detected_lang=source.current_lang)
+                    active_rec = rec
+                bidir_rec = None
+                self._bidir_model = None
+                self._bidir_lang = None
+                source.current_lang = None
+                bidir_was_on = False
+                lang_detect_buf = np.empty((0,1), dtype=np.float32)
+                log.info(f"[src {source.id}] Vosk bi-directional disabled")
 
             # ── Speaker change: force-finalize current recognition ──
             with source.speaker_lock:
@@ -680,33 +748,65 @@ class VoskBackend(SpeechBackend):
                 new_speaker = sc["name"]
                 log.info(f"[src {source.id}] Speaker: {old_speaker or '(none)'} -> {new_speaker or '(none)'}")
                 # Force Vosk to finalize whatever it has buffered
-                result = json.loads(rec.FinalResult())
+                result = json.loads(active_rec.FinalResult())
                 text = result.get("text", "").strip()
                 if text:
                     # Keep old speaker label for this segment
-                    _broadcast_final(text, loop, source)
+                    _broadcast_final(text, loop, source, detected_lang=source.current_lang)
                 source.speaker = new_speaker
                 last_partial = ""; in_speech = False
+                lang_detect_buf = np.empty((0,1), dtype=np.float32)
 
             audio_bytes = (chunk.flatten()*32767).astype(np.int16).tobytes()
             rms = float(np.sqrt(np.mean(chunk**2)))
             if rms >= silence_threshold and not in_speech:
                 in_speech = True; _bc(loop, {"type":"status","state":"speech"})
-            if rec.AcceptWaveform(audio_bytes):
-                text = json.loads(rec.Result()).get("text","").strip()
+
+            # ── Language detection for bi-directional mode ──
+            if bidir_on and bidir_rec is not None and rms >= silence_threshold:
+                lang_detect_buf = np.concatenate([lang_detect_buf, chunk])
+                now_ld = time.time()
+                # Check every ~1s of accumulated speech
+                if len(lang_detect_buf) >= SAMPLE_RATE and (now_ld - last_lang_check) >= 1.0:
+                    last_lang_check = now_ld
+                    old_lang = source.current_lang
+                    detected_lang = _detect_segment_lang(source, lang_detect_buf)
+                    lang_detect_buf = np.empty((0,1), dtype=np.float32)
+                    if detected_lang and old_lang and detected_lang != old_lang:
+                        # Language changed — force-finalize current, switch recognizer
+                        result = json.loads(active_rec.FinalResult())
+                        text = result.get("text", "").strip()
+                        if text:
+                            _broadcast_final(text, loop, source, detected_lang=old_lang)
+                        last_partial = ""; in_speech = False
+                        # Switch to the appropriate recognizer
+                        primary_lang = config.get("input_lang", "EN")
+                        det_base = detected_lang.split("-")[0]
+                        pri_base = primary_lang.split("-")[0]
+                        if det_base == pri_base:
+                            active_rec = rec
+                        else:
+                            active_rec = bidir_rec
+                        log.info(f"[src {source.id}] Vosk lang switch: "
+                                 f"{old_lang} -> {detected_lang}")
+
+            if active_rec.AcceptWaveform(audio_bytes):
+                text = json.loads(active_rec.Result()).get("text","").strip()
                 if text:
-                    _broadcast_final(text, loop, source)
+                    _broadcast_final(text, loop, source, detected_lang=source.current_lang)
                 last_partial = ""; in_speech = False
                 _bc(loop, {"type":"status","state":"silence"})
+                lang_detect_buf = np.empty((0,1), dtype=np.float32)
             else:
-                pt = json.loads(rec.PartialResult()).get("partial","").strip()
+                pt = json.loads(active_rec.PartialResult()).get("partial","").strip()
                 if pt and pt != last_partial:
                     last_partial = pt
                     _bc(loop, {"type":"interim","text":pt,"speaker":source.speaker,
                                "color":source.color,"source_id":source.id})
                     now = time.time()
                     if (now - last_pt) >= 2.0 and len(pt) > 20:
-                        last_pt = now; _translate_all(pt, "interim_translation", loop, max_slots=2)
+                        last_pt = now; _translate_all(pt, "interim_translation", loop,
+                                                      max_slots=2, source_lang=source.current_lang)
 
 
 class MLXWhisperBackend(SpeechBackend):
@@ -1504,6 +1604,22 @@ async def api_reset_speakers():
                         "color": s.color} for s in _sources]
     await broadcast_all({"type": "source_list", "sources": source_list})
     return JSONResponse({"ok": True})
+
+@operator_app.get("/api/vosk-models")
+async def get_vosk_models():
+    """List available Vosk language models in the models directory."""
+    models = []
+    for d in MODELS_DIR.glob("vosk-model-*"):
+        if d.is_dir():
+            name = d.name.lower()
+            lang = None
+            for pattern, code in VOSK_DIR_LANGS.items():
+                if f"-{pattern}" in name:
+                    lang = code
+                    break
+            if lang:
+                models.append({"path": d.name, "lang": lang})
+    return {"models": models}
 
 @operator_app.websocket("/ws")
 async def o_ws(ws: WebSocket):
