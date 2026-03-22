@@ -5,6 +5,7 @@ MIT licensed, 4.7MB model, <1ms inference, 95 languages.
 
 import logging
 import json
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -21,10 +22,11 @@ _LANG_DICT_URL = "https://raw.githubusercontent.com/snakers4/silero-vad/master/f
 
 _session = None  # ONNX InferenceSession (lazy loaded)
 _lang_dict = None  # {index: lang_code} mapping
+_load_lock = threading.Lock()
 
 
 def set_models_dir(path):
-    """Override the default models directory."""
+    """Override the default models directory. Must be called before first use."""
     global _MODELS_DIR
     _MODELS_DIR = Path(path)
 
@@ -66,21 +68,28 @@ def _load():
     if _session is not None:
         return
 
-    onnx_path = _model_dir() / "lang_detector_95.onnx"
-    dict_path = _model_dir() / "lang_dict_95.json"
+    with _load_lock:
+        if _session is not None:
+            return  # another thread loaded while we waited
 
-    if not onnx_path.exists():
-        download_model()
+        onnx_path = _model_dir() / "lang_detector_95.onnx"
+        dict_path = _model_dir() / "lang_dict_95.json"
 
-    import onnxruntime as ort
-    _session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+        if not onnx_path.exists():
+            download_model()
 
-    with open(dict_path, "r", encoding="utf-8") as f:
-        raw = json.load(f)
-    # Silero dict is {str(index): lang_code}
-    _lang_dict = {int(k): v for k, v in raw.items()}
+        import onnxruntime as ort
+        sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
 
-    log.info(f"Silero language detector loaded ({len(_lang_dict)} languages)")
+        with open(dict_path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        lang_dict = {int(k): v for k, v in raw.items()}
+
+        # Assign both atomically — _session last so the guard only passes when fully ready
+        _lang_dict = lang_dict
+        _session = sess
+
+        log.info(f"Silero language detector loaded ({len(_lang_dict)} languages)")
 
 
 def detect_language(audio, candidates=None):
@@ -119,6 +128,8 @@ def detect_language(audio, candidates=None):
             conf = probs[best_i] / total if total > 0 else probs[best_i]
             return best_lang, float(conf)
 
+    if candidates:
+        log.warning("lang_detect: none of %s matched model vocabulary, using unrestricted detection", candidates)
     # Unrestricted: pick global best
     best_i = int(np.argmax(probs))
     return _lang_dict.get(best_i, "unknown"), float(probs[best_i])
