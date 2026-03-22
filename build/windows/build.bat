@@ -231,6 +231,25 @@ if exist "%MODELS_PRE%\vosk-model-small-en-us-0.15" (
 
 :vosk_done
 
+:: Download Silero language detection model (~16 MB, MIT licensed)
+set "SILERO_DIR=%MODELS_PRE%\silero-lang-detect"
+if exist "%SILERO_DIR%\lang_classifier_95.onnx" (
+    echo   [OK] Silero language detection model already downloaded
+    goto :silero_done
+)
+
+echo.
+echo   Downloading Silero language detection model [~16 MB]
+mkdir "%SILERO_DIR%" 2>nul
+"%PYTHON_DIR%\python.exe" -c "import urllib.request; urllib.request.urlretrieve('https://huggingface.co/deepghs/silero-lang95-onnx/resolve/main/lang_classifier_95.onnx', r'%SILERO_DIR%\lang_classifier_95.onnx'); urllib.request.urlretrieve('https://huggingface.co/deepghs/silero-lang95-onnx/resolve/main/lang_dict_95.json', r'%SILERO_DIR%\lang_dict_95.json'); print('OK')" >> "%SCRIPT_DIR%build_log.txt" 2>&1
+if exist "%SILERO_DIR%\lang_classifier_95.onnx" (
+    echo   [OK] Silero language detection model downloaded
+) else (
+    echo   [FAIL] Silero download failed -- check build_log.txt
+)
+
+:silero_done
+
 :: ── Step 7: Clean __pycache__ from python_dist and venvs ──
 :: .pyc files are regenerated at runtime; bundling them causes "file corrupted" install errors
 echo   Cleaning __pycache__ from build artifacts...

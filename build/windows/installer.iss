@@ -209,6 +209,10 @@ Source: ".\models_prebuilt\vosk-model-small-en-us-0.15\*"; DestDir: "{app}\model
 Source: ".\models_prebuilt\faster-whisper-large-v3-turbo\*"; DestDir: "{app}\models\faster-whisper-large-v3-turbo"; Flags: ignoreversion recursesubdirs createallsubdirs
   #endif
 #endif
+; ── Silero language detection (bundled for both editions — 16 MB, MIT licensed) ──
+#ifexist ".\models_prebuilt\silero-lang-detect\lang_classifier_95.onnx"
+Source: ".\models_prebuilt\silero-lang-detect\*"; DestDir: "{app}\models\silero-lang-detect"; Flags: ignoreversion
+#endif
 
 [Dirs]
 Name: "{app}\uploads"; Permissions: users-modify
