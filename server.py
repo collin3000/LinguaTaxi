@@ -1104,6 +1104,9 @@ def _translations_for_slots(slot_start, slot_end):
 @display_app.get("/")
 async def d_index(): return FileResponse(BASE_DIR / "display.html")
 
+@display_app.get("/bidirectional")
+async def bidirectional_page(): return FileResponse(BASE_DIR / "bidirectional.html")
+
 @display_app.get("/uploads/{fn}")
 async def d_uploads(fn: str):
     p = UPLOADS_DIR / fn
