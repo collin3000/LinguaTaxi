@@ -470,8 +470,10 @@ def _get_speaker_lang(source):
 
 def _detect_segment_lang(source, buf):
     """Detect the language of an audio segment for bi-directional mode.
-    Returns detected DeepL language code, or None if detection is disabled/unavailable."""
-    if not config.get("bidirectional_enabled"):
+    Returns detected DeepL language code, or None if detection is disabled/unavailable.
+    NOTE: Auto-detection disabled — bi-directional uses manual operator swap only."""
+    return None
+    if not config.get("bidirectional_enabled"):  # noqa: E702 — unreachable until auto-detect is re-enabled
         return None
     bidir_langs = config.get("bidirectional_langs", [])
     if len(bidir_langs) != 2:
