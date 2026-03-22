@@ -668,8 +668,9 @@ function toggleBidir(){
   const fd=new FormData();
   fd.append('bidirectional_enabled', bidirEnabled?'true':'false');
   fd.append('bidirectional_langs', JSON.stringify(bidirLangs));
+  // When enabling, also set input_lang to langA
+  if(bidirEnabled) fd.append('input_lang', langA);
   fetch('/api/config',{method:'POST',body:fd}).then(r=>r.json()).then(()=>{
-    // Reload config to get updated translation slots from server
     loadCfg();
   });
 }
@@ -682,9 +683,10 @@ function onBidirLangChange(){
   fd.append('bidirectional_langs', JSON.stringify(bidirLangs));
   if(bidirEnabled){
     fd.append('bidirectional_enabled','true');
+    fd.append('input_lang', langA);
   }
   fetch('/api/config',{method:'POST',body:fd}).then(r=>r.json()).then(()=>{
-    if(bidirEnabled) loadCfg();
+    loadCfg();
   });
 }
 
@@ -696,19 +698,24 @@ function swapBidirLangs(){
   selB.value=tmp;
   bidirLangs=[selA.value,selB.value];
 
-  // Update input language to match the new "A" language
+  // Update input language to match the new "A" (spoken) language
   const inputSel=document.getElementById('iInputLang');
   if(inputSel)inputSel.value=selA.value;
 
-  // Send swap: input_lang + bidirectional_langs + re-trigger translation slots
+  // Update slot 0 to translate into the new "B" (other) language
+  // Find the DeepL target code for langB
+  const otherLang=selB.value;
+  const targetCode=tgtLangs[otherLang]?otherLang:Object.keys(tgtLangs).find(k=>k.startsWith(otherLang))||otherLang;
+  if(translations.length>0&&translations[0].auto_bidir){
+    translations[0].lang=targetCode;
+  }
+
   const fd=new FormData();
   fd.append('input_lang', selA.value);
   fd.append('bidirectional_langs', JSON.stringify(bidirLangs));
-  if(bidirEnabled){
-    fd.append('bidirectional_enabled','true');
-  }
+  fd.append('translations_json', JSON.stringify(translations));
   fetch('/api/config',{method:'POST',body:fd}).then(r=>r.json()).then(()=>{
-    if(bidirEnabled) loadCfg();
+    loadCfg();
   });
 }
 
